@@ -53,7 +53,7 @@ function toolResultEvent(seq: number, time: number, turn: number, step: number, 
       message: {
         id: 'tool-msg',
         role: 'user',
-        content: [{ type: 'tool-result', toolCallId: callId, content: [], ...(isError ? { isError: true } : {}) }],
+        content: [{ type: 'tool-result', toolCallId: callId, content: [{ type: 'text', text: 'x'.repeat(40) }], ...(isError ? { isError: true } : {}) }],
         source: { kind: 'tool', name: 'web_search' },
       },
     },
@@ -114,6 +114,8 @@ test('collector folds usage, identity, and tool results into the store', () => {
     assert.equal(calls[0]?.callId, 'call-1')
     assert.equal(calls[0]?.resultSeq, 4)
     assert.equal(calls[0]?.isError, true)
+    const expectedTokens = Math.max(1, Math.ceil(JSON.stringify({ type: 'text', text: 'x'.repeat(40) }).length / 4))
+    assert.equal(calls[0]?.resultTokens, expectedTokens)
     const turns = store.turnsForSession('session-1')
     assert.equal(turns.length, 1)
     assert.equal(turns[0]?.turn, 1)

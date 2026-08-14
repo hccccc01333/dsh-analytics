@@ -120,6 +120,9 @@ test('JSON API routes answer from the analytics service', async () => {
     const insights = await request(server.routes.get('/api/analytics/insights')!, 'GET', '/api/analytics/insights')
     assert.equal(insights.status, 200)
     assert.ok(Array.isArray(JSON.parse(insights.body)))
+    const inflation = await request(server.routes.get('/api/analytics/inflation')!, 'GET', '/api/analytics/inflation')
+    assert.equal(inflation.status, 200)
+    assert.ok(typeof JSON.parse(inflation.body).inflatedTokens === 'number')
 
     const missingId = await request(server.routes.get('/api/analytics/session')!, 'GET', '/api/analytics/session/')
     assert.equal(missingId.status, 400)

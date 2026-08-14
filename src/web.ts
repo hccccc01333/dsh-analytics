@@ -76,6 +76,7 @@ export function registerAnalyticsRoutes(ctx: unknown, analytics: AnalyticsServic
   exact('/api/analytics/reasoning', async (search) => analytics.reasoning(parseHours(search.get('hours'))))
   exact('/api/analytics/agents', async (search) => analytics.agents(parseHours(search.get('hours'))))
   exact('/api/analytics/insights', async (search) => analytics.insights(parseHours(search.get('hours'))))
+  exact('/api/analytics/inflation', async (search) => analytics.contextInflation(parseHours(search.get('hours'))))
   exact('/api/analytics/pricing', async () => analytics.pricing())
   exact('/api/analytics/budget', async () => analytics.budget())
 

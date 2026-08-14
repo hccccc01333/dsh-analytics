@@ -38,9 +38,9 @@ function seedRequest(partial) {
   })
 }
 
-function seedTool(sessionId, seq, turn, step, name, callId, isError = false) {
+function seedTool(sessionId, seq, turn, step, name, callId, isError = false, resultTokens = 0) {
   store.upsertToolCall({ sessionId, turn, step, seq, callId, name, time: NOW - 3600000 * (10 - seq) })
-  store.pairToolResult({ sessionId, callId, resultSeq: seq + 1, isError })
+  store.pairToolResult({ sessionId, callId, resultSeq: seq + 1, isError, resultTokens })
 }
 
 const sessions = [
@@ -51,17 +51,18 @@ const sessions = [
 ]
 for (const session of sessions) store.upsertSession({ sessionId: session.id, createdAt: session.createdAt, cwd: session.cwd, title: session.title })
 
-// session-1: heavy cache reuse, pro + max reasoning (今日高频)
+// session-1: heavy cache reuse, pro + max reasoning (今日高频).
+// Interleaved seqs so each tool result is carried by the later requests.
 seedRequest({ sessionId: 'session-1', seq: 1, turn: 1, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 4.9 * 3600000, input: 12400, cacheRead: 8100, output: 820, reasoning: 3200 })
-seedRequest({ sessionId: 'session-1', seq: 2, turn: 2, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 4.2 * 3600000, input: 21800, cacheRead: 17700, output: 1300, reasoning: 4900 })
-seedRequest({ sessionId: 'session-1', seq: 3, turn: 3, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 3.4 * 3600000, input: 38200, cacheRead: 31400, output: 2400, reasoning: 7800 })
-seedRequest({ sessionId: 'session-1', seq: 4, turn: 4, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 2.6 * 3600000, input: 67100, cacheRead: 59500, output: 3100, reasoning: 11200 })
-seedRequest({ sessionId: 'session-1', seq: 5, turn: 5, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 1.8 * 3600000, input: 96400, cacheRead: 87300, output: 4200, reasoning: 15100 })
-seedRequest({ sessionId: 'session-1', seq: 6, turn: 6, model: 'deepseek-v4-pro', reasoningEffort: 'high', time: NOW - 0.9 * 3600000, input: 128000, cacheRead: 119000, output: 3600, reasoning: 8400 })
-seedTool('session-1', 10, 1, 1, 'web_search', 'c1')
-seedTool('session-1', 12, 2, 1, 'github_review', 'c2', true)
-seedTool('session-1', 14, 3, 1, 'excel_analysis', 'c3')
-seedTool('session-1', 16, 4, 1, 'web_search', 'c4')
+seedTool('session-1', 2, 1, 1, 'web_search', 'c1', false, 12000)
+seedRequest({ sessionId: 'session-1', seq: 4, turn: 2, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 4.2 * 3600000, input: 21800, cacheRead: 17700, output: 1300, reasoning: 4900 })
+seedTool('session-1', 5, 2, 1, 'github_review', 'c2', true, 30000)
+seedRequest({ sessionId: 'session-1', seq: 7, turn: 3, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 3.4 * 3600000, input: 38200, cacheRead: 31400, output: 2400, reasoning: 7800 })
+seedTool('session-1', 8, 3, 1, 'excel_analysis', 'c3', false, 45000)
+seedRequest({ sessionId: 'session-1', seq: 10, turn: 4, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 2.6 * 3600000, input: 67100, cacheRead: 59500, output: 3100, reasoning: 11200 })
+seedTool('session-1', 11, 4, 1, 'web_search', 'c4', false, 14000)
+seedRequest({ sessionId: 'session-1', seq: 13, turn: 5, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 1.8 * 3600000, input: 96400, cacheRead: 87300, output: 4200, reasoning: 15100 })
+seedRequest({ sessionId: 'session-1', seq: 14, turn: 6, model: 'deepseek-v4-pro', reasoningEffort: 'high', time: NOW - 0.9 * 3600000, input: 128000, cacheRead: 119000, output: 3600, reasoning: 8400 })
 
 // session-2: flash + high（昨天，低缓存命中）
 seedRequest({ sessionId: 'session-2', seq: 1, turn: 1, model: 'deepseek-v4-flash', reasoningEffort: 'high', time: NOW - 25 * 3600000, input: 4200, cacheRead: 800, output: 640, reasoning: 1200 })

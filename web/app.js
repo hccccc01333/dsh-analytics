@@ -17,6 +17,7 @@
     reasoning(hours) { return get('/api/analytics/reasoning' + qs({ hours })) },
     agents(hours) { return get('/api/analytics/agents' + qs({ hours })) },
     insights(hours) { return get('/api/analytics/insights' + qs({ hours })) },
+    inflation(hours) { return get('/api/analytics/inflation' + qs({ hours })) },
     pricing() { return get('/api/analytics/pricing') },
     budget() { return get('/api/analytics/budget') },
   }
@@ -366,6 +367,7 @@
       'tabs.overview': 'Overview', 'tabs.sessions': 'Sessions', 'tabs.flow': 'Token Flow',
       'tabs.models': 'Models', 'tabs.cost': 'Cost', 'tabs.reasoning': 'Reasoning',
       'tabs.agents': 'Agents', 'tabs.insights': 'Insights', 'tabs.pricing': 'Pricing',
+      'tabs.inflation': 'Inflation',
       'kpi.cost': 'Total Cost', 'kpi.tokens': 'Total Tokens', 'kpi.cache': 'Cache Hit Rate',
       'kpi.reasoning': 'Reasoning Share', 'kpi.calls': 'API Calls', 'kpi.tools': 'Tool Calls',
       'kpi.unpriced': 'unpriced', 'kpi.sessions': 'sessions', 'kpi.reasoningTokens': 'reasoning tokens',
@@ -395,6 +397,12 @@
       'insight.budget-monthly': 'Monthly budget at {ratio}% ({spent} / {limit}) — projected to exceed.',
       'insight.subagent-share': 'Subagents account for {share}% of total cost.',
       'insight.context-growth': 'Session {session} reached {tokens} across {calls} calls — consider compaction.',
+      'inflation.title': 'Context Inflation', 'inflation.shareTitle': 'Share by Tool',
+      'inflation.method': 'Tool-result tokens are estimated at 4 chars/token; inflated tokens = result tokens × the later requests that carry them.',
+      'inflation.inflatedTokens': 'Inflated tokens', 'inflation.inflatedCost': 'Avoidable cost',
+      'inflation.shareOfInput': 'Share of input', 'inflation.results': 'Results analyzed',
+      'inflation.carried': 'repeat carries',
+      'table.results': 'Results', 'table.carried': 'Carries', 'table.inflated': 'Inflated', 'table.share': 'Share',
       'table.titleCwd': 'Title / cwd', 'table.session': 'Session', 'table.created': 'Created',
       'table.calls': 'Calls', 'table.tokens': 'Tokens', 'table.cost': 'Cost', 'table.model': 'Model',
       'table.provider': 'Provider', 'table.input': 'Input', 'table.cache': 'Cache',
@@ -417,6 +425,7 @@
       'tabs.overview': '概览', 'tabs.sessions': '会话', 'tabs.flow': 'Token 流',
       'tabs.models': '模型', 'tabs.cost': '成本', 'tabs.reasoning': '推理效率',
       'tabs.agents': '子代理', 'tabs.insights': '优化建议', 'tabs.pricing': '定价',
+      'tabs.inflation': '上下文膨胀',
       'kpi.cost': '总成本', 'kpi.tokens': '总 Token', 'kpi.cache': '缓存命中率',
       'kpi.reasoning': '推理占比', 'kpi.calls': 'API 调用', 'kpi.tools': '工具调用',
       'kpi.unpriced': '未计价', 'kpi.sessions': '个会话', 'kpi.reasoningTokens': '推理 Token',
@@ -446,6 +455,12 @@
       'insight.budget-monthly': '月度预算已达 {ratio}%（{spent} / {limit}）——预计超支。',
       'insight.subagent-share': '子代理占总成本的 {share}%。',
       'insight.context-growth': '会话 {session} 已达 {tokens}，共 {calls} 次调用——建议考虑压缩。',
+      'inflation.title': '上下文膨胀分析', 'inflation.shareTitle': '按工具占比',
+      'inflation.method': '工具结果按 4 字符/token 估算；膨胀 Token = 结果 Token × 其后携带它的请求数。',
+      'inflation.inflatedTokens': '膨胀 Token', 'inflation.inflatedCost': '可节省成本',
+      'inflation.shareOfInput': '占输入比例', 'inflation.results': '已分析结果',
+      'inflation.carried': '次重复携带',
+      'table.results': '结果数', 'table.carried': '携带', 'table.inflated': '膨胀量', 'table.share': '占比',
       'table.titleCwd': '标题 / 工作目录', 'table.session': '会话', 'table.created': '创建时间',
       'table.calls': '调用', 'table.tokens': 'Token', 'table.cost': '成本', 'table.model': '模型',
       'table.provider': '提供方', 'table.input': '输入', 'table.cache': '缓存',
@@ -503,6 +518,7 @@
     ['reasoning', 'tabs.reasoning'],
     ['agents', 'tabs.agents'],
     ['insights', 'tabs.insights'],
+    ['inflation', 'tabs.inflation'],
     ['pricing', 'tabs.pricing'],
   ]
 
@@ -1011,6 +1027,56 @@
     ]
   }
 
+  async function renderInflation() {
+    const report = await api.inflation(state.hours)
+    if (report.results === 0) {
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyRequests')))]
+    }
+    const byTool = report.byTool
+    const bars = chart(groupedBars(
+      byTool.map(tool => ({ label: tool.name, values: [tool.inflatedTokens] })),
+      [{ label: t('inflation.inflatedTokens'), color: PALETTE[2] }],
+      { height: 220 },
+    ), true)
+    const parts = byTool.map((tool, i) => ({ label: tool.name, value: tool.inflatedTokens, color: PALETTE[i % PALETTE.length] }))
+    const donut = chart(donutChart(parts, { centerText: fmt.tokens(report.inflatedTokens) }))
+    const legendRows = el('div', { class: 'donut-legend' }, parts.map(part => el('div', { class: 'metric-bar' }, [
+      el('span', { class: 'legend-dot', style: 'background:' + part.color }),
+      el('span', { class: 'm-label', style: 'text-align:left;flex:1;width:auto' }, part.label),
+      el('span', { class: 'm-value' }, fmt.pct(part.value / Math.max(1, report.inflatedTokens)) + ' · ' + fmt.tokens(part.value)),
+    ])))
+    const tableRows = byTool.map(tool => ({
+      cells: [
+        tool.name,
+        rightCell(fmt.number(tool.results)),
+        rightCell(fmt.tokens(tool.resultTokens)),
+        rightCell(fmt.number(tool.carriedTimes)),
+        rightCell(fmt.tokens(tool.inflatedTokens)),
+        rightCell(fmt.pct(tool.shareOfInflated)),
+        rightCell(fmt.cost(tool.inflatedCost)),
+      ],
+    }))
+    return [
+      el('div', { class: 'cards' }, [
+        card(t('inflation.inflatedTokens'), fmt.tokens(report.inflatedTokens), fmt.tokens(report.resultTokens) + ' raw result tokens'),
+        card(t('inflation.inflatedCost'), fmt.cost(report.inflatedCost)),
+        card(t('inflation.shareOfInput'), fmt.pct(report.shareOfInput)),
+        card(t('inflation.results'), fmt.number(report.results), report.carriedTimes + ' ' + t('inflation.carried')),
+      ]),
+      el('div', { class: 'grid-2' }, [
+        panel(t('inflation.title'), [
+          el('div', { class: 'method-note' }, t('inflation.method')),
+          bars,
+        ]),
+        panel(t('inflation.shareTitle'), [el('div', { class: 'donut-wrap' }, [donut, legendRows])]),
+      ]),
+      panel(t('inflation.title'), table(
+        [{ label: t('table.tool') }, { label: t('table.results'), align: 'right' }, { label: t('table.tokens'), align: 'right' }, { label: t('table.carried'), align: 'right' }, { label: t('table.inflated'), align: 'right' }, { label: t('table.share'), align: 'right' }, { label: t('table.cost'), align: 'right' }],
+        tableRows,
+      )),
+    ]
+  }
+
   function sessionCostList(sessions) {
     if (sessions.length === 0) return el('div', { class: 'dim' }, t('state.emptySessions'))
     const maxCost = Math.max(1, ...sessions.map(s => (s.cost[0] && s.cost[0].amount) || 0))
@@ -1163,6 +1229,7 @@
       case 'reasoning': return renderReasoning()
       case 'agents': return renderAgents()
       case 'insights': return renderInsights()
+      case 'inflation': return renderInflation()
       case 'pricing': return renderPricing()
       default: return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.unknownPage') + ' ' + route.path))]
     }

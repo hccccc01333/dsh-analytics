@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0 — 2026-08-14
+
+- Context inflation: `tool/result` content is token-estimated at collection (4 chars/token, stored on the tool call); `ctx.analytics.contextInflation()` computes how many later requests carried each result, the duplicated tokens, and the avoidable cost at each carried request's miss price.
+- New Context Inflation dashboard page (inflated-token bars, share donut, per-tool table, method note), `/api/analytics/inflation` route, and `analytics_query(query="inflation")`.
+- Preview seed interleaves tool results before later requests so inflation is visible.
+
 ## 0.3.0 — 2026-08-14
 
 - SubAgent ROI: `ctx.analytics.agents()` builds the parent/child agent cost tree; new Agents dashboard page (tree rows with cost bars, top-level cost donut, click-through to session drill-down), `/api/analytics/agents` route, `analytics_query(query="agents")`.

@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS dsh_analytics_tool_calls (
   time INTEGER NOT NULL,
   result_seq INTEGER,
   is_error INTEGER NOT NULL DEFAULT 0,
+  result_tokens INTEGER,
   PRIMARY KEY (session_id, seq)
 );
 CREATE TABLE IF NOT EXISTS dsh_analytics_turns (
@@ -100,6 +101,7 @@ interface ToolCallRow {
   time: number
   resultSeq: number | null
   isError: number | null
+  resultTokens: number | null
 }
 
 function toToolCallRecord(row: ToolCallRow): ToolCallRecord {
@@ -113,6 +115,7 @@ function toToolCallRecord(row: ToolCallRow): ToolCallRecord {
     time: row.time,
     ...(row.resultSeq === null ? {} : { resultSeq: row.resultSeq }),
     ...(row.isError === null ? {} : { isError: row.isError === 1 }),
+    ...(row.resultTokens === null ? {} : { resultTokens: row.resultTokens }),
   }
 }
 
@@ -149,6 +152,11 @@ export class AnalyticsStore {
     this.db = new DatabaseSync(path)
     this.db.exec('PRAGMA journal_mode = WAL')
     this.db.exec(SCHEMA)
+    // Additive column for databases created before 0.4.0 (pre-1.0, additive only).
+    const columns = this.db.prepare('PRAGMA table_info(dsh_analytics_tool_calls)').all() as { name: string }[]
+    if (!columns.some(column => column.name === 'result_tokens')) {
+      this.db.exec('ALTER TABLE dsh_analytics_tool_calls ADD COLUMN result_tokens INTEGER')
+    }
 
     this.upsertSessionStmt = this.db.prepare(`
       INSERT INTO dsh_analytics_sessions (session_id, cwd, parent_session, created_at, title)
@@ -189,7 +197,7 @@ export class AnalyticsStore {
     `)
     this.pairToolResultStmt = this.db.prepare(`
       UPDATE dsh_analytics_tool_calls
-      SET result_seq = ?, is_error = ?
+      SET result_seq = ?, is_error = ?, result_tokens = ?
       WHERE session_id = ? AND call_id = ?
     `)
     this.upsertTurnStartStmt = this.db.prepare(`
@@ -241,14 +249,14 @@ export class AnalyticsStore {
     `)
     this.selectToolCallsStmt = this.db.prepare(`
       SELECT session_id AS sessionId, turn, step, seq, call_id AS callId, name, time,
-             result_seq AS resultSeq, is_error AS isError
+             result_seq AS resultSeq, is_error AS isError, result_tokens AS resultTokens
       FROM dsh_analytics_tool_calls
       WHERE time >= ? AND time < ?
       ORDER BY time, seq
     `)
     this.selectSessionToolCallsStmt = this.db.prepare(`
       SELECT session_id AS sessionId, turn, step, seq, call_id AS callId, name, time,
-             result_seq AS resultSeq, is_error AS isError
+             result_seq AS resultSeq, is_error AS isError, result_tokens AS resultTokens
       FROM dsh_analytics_tool_calls
       WHERE session_id = ?
       ORDER BY time, seq
@@ -320,8 +328,8 @@ export class AnalyticsStore {
     )
   }
 
-  pairToolResult(input: { sessionId: string; callId: string; resultSeq: number; isError: boolean }): void {
-    this.pairToolResultStmt.run(input.resultSeq, input.isError ? 1 : 0, input.sessionId, input.callId)
+  pairToolResult(input: { sessionId: string; callId: string; resultSeq: number; isError: boolean; resultTokens?: number }): void {
+    this.pairToolResultStmt.run(input.resultSeq, input.isError ? 1 : 0, input.resultTokens ?? 0, input.sessionId, input.callId)
   }
 
   upsertTurnStart(input: { sessionId: string; turn: number; startTime: number }): void {

@@ -77,6 +77,8 @@ export interface ToolCallRecord {
   resultSeq?: number
   /** Whether the result reported an error. */
   isError?: boolean
+  /** Heuristic token count of the tool result content (chars / 4). */
+  resultTokens?: number
 }
 
 /** One agent turn with its wall-clock span and outcome. */

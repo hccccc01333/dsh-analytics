@@ -1,6 +1,6 @@
 {
   "name": "dsh-analytics",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Agent FinOps / token analytics for DeepSeek Harness: usage collection, time-aware cost engine, cache analysis, and session drill-down",
   "repository": {
     "type": "git",

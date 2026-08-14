@@ -185,6 +185,8 @@ tr.row-link:hover td { background: var(--bg-hover); }
 .insight-danger .insight-tag { color: var(--red); }
 .insight-text { font-size: 13px; line-height: 1.55; color: var(--text); }
 
+.method-note { color: var(--text-faint); font-size: 12px; margin-bottom: 12px; line-height: 1.5; }
+
 .kpi-trend { color: var(--green); font-size: 12px; }
 .kpi-trend.down { color: var(--red); }
 

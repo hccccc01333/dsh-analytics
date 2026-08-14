@@ -223,6 +223,32 @@ export interface Insight {
   values: Record<string, string | number>
 }
 
+/** One tool's context-inflation footprint. */
+export interface ContextInflationSummary {
+  name: string
+  results: number
+  resultTokens: number
+  /** Total number of later requests that carried this tool's results. */
+  carriedTimes: number
+  /** `resultTokens` across all carried copies. */
+  inflatedTokens: number
+  /** Estimated cost of the inflated copies at each carried request's miss price. */
+  inflatedCost: CostSummary[]
+  shareOfInflated: number
+}
+
+/** Context duplication caused by tool results re-sent in later requests. */
+export interface ContextInflationReport {
+  results: number
+  resultTokens: number
+  carriedTimes: number
+  inflatedTokens: number
+  inflatedCost: CostSummary[]
+  totalInputTokens: number
+  shareOfInput: number
+  byTool: ContextInflationSummary[]
+}
+
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 
@@ -594,6 +620,81 @@ export class AnalyticsLocal extends AnalyticsService {
     }
     const rank = { danger: 0, warn: 1, info: 2 } as const
     return insights.sort((a, b) => rank[a.severity] - rank[b.severity])
+  }
+
+  async contextInflation(request?: AnalyticsRange): Promise<ContextInflationReport> {
+    const range = this.resolveRange(request)
+    const store = this.deps.store
+    const calls = store.toolCalls(range)
+    const requests = store.requests(range)
+    const bySession = new Map<string, UsageRecord[]>()
+    for (const record of requests) {
+      const list = bySession.get(record.sessionId)
+      if (list === undefined) bySession.set(record.sessionId, [record])
+      else list.push(record)
+    }
+    const byTool = new Map<string, ContextInflationSummary>()
+    const costByCurrency = new Map<string, number>()
+    let inflatedTokens = 0
+    let carriedTimes = 0
+    let resultTokens = 0
+    let results = 0
+    for (const call of calls) {
+      if (call.resultTokens === undefined) continue
+      results += 1
+      resultTokens += call.resultTokens
+      const later = (bySession.get(call.sessionId) ?? []).filter(record => record.seq > (call.resultSeq ?? call.seq))
+      const carried = later.length
+      carriedTimes += carried
+      const inflated = call.resultTokens * carried
+      inflatedTokens += inflated
+      const entry = byTool.get(call.name) ?? {
+        name: call.name,
+        results: 0,
+        resultTokens: 0,
+        carriedTimes: 0,
+        inflatedTokens: 0,
+        inflatedCost: [] as CostSummary[],
+        shareOfInflated: 0,
+      }
+      entry.results += 1
+      entry.resultTokens += call.resultTokens
+      entry.carriedTimes += carried
+      entry.inflatedTokens += inflated
+      byTool.set(call.name, entry)
+      for (const record of later) {
+        const price = this.deps.engine.resolvePrice({
+          provider: record.provider,
+          model: record.model,
+          time: record.time,
+          inputType: 'cache_miss',
+        })
+        if (price === undefined) continue
+        const amount = price.pricePerMillion * call.resultTokens / 1e6
+        costByCurrency.set(price.currency, (costByCurrency.get(price.currency) ?? 0) + amount)
+        const toolCost = entry.inflatedCost.find(cost => cost.currency === price.currency)
+        if (toolCost === undefined) entry.inflatedCost.push({ currency: price.currency, amount })
+        else toolCost.amount += amount
+      }
+    }
+    const totalInputTokens = requests.reduce((sum, record) => sum + record.inputTokens + record.cacheReadTokens + record.cacheWriteTokens, 0)
+    return {
+      results,
+      resultTokens,
+      carriedTimes,
+      inflatedTokens,
+      inflatedCost: [...costByCurrency.entries()]
+        .map(([currency, amount]) => ({ currency, amount }))
+        .sort((a, b) => b.amount - a.amount),
+      totalInputTokens,
+      shareOfInput: totalInputTokens === 0 ? 0 : Math.min(1, inflatedTokens / totalInputTokens),
+      byTool: [...byTool.values()]
+        .map(entry => ({
+          ...entry,
+          shareOfInflated: inflatedTokens === 0 ? 0 : entry.inflatedTokens / inflatedTokens,
+        }))
+        .sort((a, b) => b.inflatedTokens - a.inflatedTokens),
+    }
   }
 
   async session(sessionId: string): Promise<SessionAnalytics> {

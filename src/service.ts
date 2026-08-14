@@ -10,6 +10,7 @@ import type {
   AnalyticsOverview,
   AnalyticsRange,
   BudgetSummary,
+  ContextInflationReport,
   Insight,
   ReasoningSummary,
   ModelSummary,
@@ -86,6 +87,13 @@ export abstract class AnalyticsService extends Service {
    * @returns structured suggestions ordered by severity.
    */
   abstract insights(request?: AnalyticsRange): Promise<Insight[]>
+
+  /**
+   * Context inflation from tool results re-sent in later requests.
+   * @param request - optional time bounds.
+   * @returns per-tool duplication tokens/cost and their share of input.
+   */
+  abstract contextInflation(request?: AnalyticsRange): Promise<ContextInflationReport>
 
   /**
    * Reasoning-effort efficiency over a time range.

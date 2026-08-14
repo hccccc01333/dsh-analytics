@@ -14,6 +14,17 @@ import type { EpochHeader, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { AnalyticsStore } from './store.ts'
 import type { ToolCallRecord, UsageRecord } from './types.ts'
 
+/** Heuristic tokens of one tool result: chars / 4, minimum 1. */
+function estimateResultTokens(content: readonly unknown[]): number {
+  let chars = 0
+  for (const part of content) {
+    if (typeof part === 'string') chars += part.length
+    else if (typeof part === 'number') chars += String(part).length
+    else if (part !== null && typeof part === 'object') chars += JSON.stringify(part).length
+  }
+  return Math.max(1, Math.ceil(chars / 4))
+}
+
 /** The minimum live header the collector needs to price a request. */
 interface RequestIdentity {
   provider: string
@@ -142,6 +153,7 @@ export class UsageCollector {
             callId: String(block.toolCallId),
             resultSeq: event.seq,
             isError: block.isError === true || event.data.error !== undefined,
+            resultTokens: estimateResultTokens(block.content),
           })
         }
         break

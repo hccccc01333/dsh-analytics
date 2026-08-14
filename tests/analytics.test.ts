@@ -186,6 +186,31 @@ test('insights emits cache-low and reasoning-effort rules', async () => {
   }
 })
 
+test('contextInflation estimates duplicated tool-result tokens', async () => {
+  const store = new AnalyticsStore(':memory:')
+  try {
+    store.upsertSession({ sessionId: 'session-1', createdAt: T0 })
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 1, turn: 1, time: T0, inputTokens: 1000, outputTokens: 500 }))
+    store.upsertToolCall({ sessionId: 'session-1', turn: 1, step: 1, seq: 2, callId: 'c1', name: 'web_search', time: T0 + 1000 })
+    store.pairToolResult({ sessionId: 'session-1', callId: 'c1', resultSeq: 3, isError: false, resultTokens: 400 })
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 4, turn: 2, time: T0 + 2000, inputTokens: 2000, outputTokens: 600 }))
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 5, turn: 3, time: T0 + 3000, inputTokens: 3000, outputTokens: 700 }))
+    const ctx = await mount(store)
+    const report = await ctx.analytics.contextInflation({ start: T0 - 1, end: T0 + 10_000 })
+    assert.equal(report.results, 1)
+    assert.equal(report.resultTokens, 400)
+    assert.equal(report.carriedTimes, 2)
+    assert.equal(report.inflatedTokens, 800)
+    assert.equal(report.byTool.length, 1)
+    assert.equal(report.byTool[0]?.name, 'web_search')
+    assert.equal(report.byTool[0]?.inflatedTokens, 800)
+    assert.equal(report.byTool[0]?.shareOfInflated, 1)
+    assert.ok(report.inflatedCost.length > 0)
+  } finally {
+    store.close()
+  }
+})
+
 test('budget reports daily and monthly spend with projection', async () => {
   const store = new AnalyticsStore(':memory:')
   try {

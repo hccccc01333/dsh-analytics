@@ -124,7 +124,7 @@ The model can ask for the same numbers:
 ```text
 analytics_query(query="overview", range_hours=24)
 analytics_query(query="session", session_id="session-1")
-analytics_query(query="models" | "sessions" | "tools" | "reasoning" | "agents" | "insights" | "pricing" | "budget", range_hours=24)
+analytics_query(query="models" | "sessions" | "tools" | "reasoning" | "agents" | "insights" | "inflation" | "pricing" | "budget", range_hours=24)
 ```
 
 `range_hours` bounds the window ending now (`0` = all time, default 24).
@@ -154,6 +154,8 @@ package (`web/`):
   top-level cost donut (click any node to drill down)
 - **Insights** — rule-generated optimization suggestions (reasoning effort,
   cache, tool concentration, budget, subagent share, context growth)
+- **Context Inflation** — tool results re-sent in later requests: duplicated
+  tokens, avoidable cost, and per-tool share
 - **Token Flow / Models / Cost / Pricing** — per-bucket trend, per-model
   aggregates, per-tool step attribution, latest-rate price comparison, and the pricing table
 
