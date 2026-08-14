@@ -129,33 +129,71 @@
   }
 
   // ---------- SVG charts ----------
-  function chart(svgMarkup, small) {
+  const PALETTE = ['#4c9aff', '#3ec7d6', '#9d8cff', '#34c98a', '#e8b64c', '#e5606f']
+
+  function chart(spec, small) {
     const holder = el('div', { class: 'flow-chart' + (small ? ' small' : '') })
-    holder.innerHTML = svgMarkup // numeric-only payload, safe by construction
+    holder.innerHTML = spec.svg // numeric-only payload, safe by construction
+    if (spec.meta !== undefined) attachTooltip(holder, spec.meta)
     return holder
   }
+
+  function smoothPath(points) {
+    if (points.length < 3) {
+      return points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
+    }
+    const d = ['M' + points[0][0].toFixed(1) + ' ' + points[0][1].toFixed(1)]
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)]
+      const p1 = points[i]
+      const p2 = points[i + 1]
+      const p3 = points[Math.min(points.length - 1, i + 2)]
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6
+      const c1y = p1[1] + (p2[1] - p0[1]) / 6
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6
+      const c2y = p2[1] - (p3[1] - p1[1]) / 6
+      d.push('C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ',' + c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ',' + p2[0].toFixed(1) + ' ' + p2[1].toFixed(1))
+    }
+    return d.join(' ')
+  }
+
+  let chartUid = 0
 
   function lineChart(series, opts) {
     const width = 880
     const height = opts.height || 240
-    const pad = { top: 12, right: 12, bottom: 24, left: 64 }
+    const pad = { top: 14, right: 14, bottom: 26, left: 64 }
     const innerW = width - pad.left - pad.right
     const innerH = height - pad.top - pad.bottom
+    const yFormat = opts.yFormat || fmt.tokens
+    const valueFormat = opts.valueFormat || fmt.tokens
+    const uid = 'dsh-chart-' + (chartUid++)
     let max = 1
     for (const s of series) for (const v of s.points) if (v > max) max = v
     max = niceMax(max)
-    const xs = series[0] ? series[0].points.map((_, i) => i) : []
-    const x = i => pad.left + (xs.length <= 1 ? 0 : (i / (xs.length - 1)) * innerW)
+    const n = series[0] ? series[0].points.length : 0
+    const x = i => pad.left + (n <= 1 ? 0 : (i / (n - 1)) * innerW)
     const y = v => pad.top + innerH - (v / max) * innerH
-    const path = s => s.points.map((v, i) => (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ')
-    const area = s => path(s) + ' L' + x(s.points.length - 1).toFixed(1) + ' ' + (pad.top + innerH) + ' L' + x(0).toFixed(1) + ' ' + (pad.top + innerH) + ' Z'
+    const baseY = pad.top + innerH
+    const points = s => s.points.map((v, i) => [x(i), y(v)])
+    const line = s => smoothPath(points(s))
+    const area = s => line(s) + ' L' + x(n - 1).toFixed(1) + ' ' + baseY + ' L' + x(0).toFixed(1) + ' ' + baseY + ' Z'
+    const defs = series.map((s, i) =>
+      '<linearGradient id="' + uid + '-' + i + '" x1="0" y1="0" x2="0" y2="1">'
+      + '<stop offset="0%" stop-color="' + s.color + '" stop-opacity="0.28"/>'
+      + '<stop offset="100%" stop-color="' + s.color + '" stop-opacity="0.02"/>'
+      + '</linearGradient>').join('')
     const grid = []
     const steps = 4
     for (let i = 0; i <= steps; i++) {
       const v = (max / steps) * i
       grid.push('<line x1="' + pad.left + '" y1="' + y(v).toFixed(1) + '" x2="' + (width - pad.right) + '" y2="' + y(v).toFixed(1) + '" stroke="#232b36" stroke-width="1"/>')
-      grid.push('<text x="' + (pad.left - 8) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="#5d6b7d">' + fmt.tokens(v) + '</text>')
+      grid.push('<line x1="' + (pad.left - 4) + '" y1="' + y(v).toFixed(1) + '" x2="' + pad.left + '" y2="' + y(v).toFixed(1) + '" stroke="#3a4757" stroke-width="1"/>')
+      grid.push('<text x="' + (pad.left - 10) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="#93a1b3">' + yFormat(v) + '</text>')
     }
+    // Visible axis lines: left and bottom.
+    grid.push('<line x1="' + pad.left + '" y1="' + pad.top + '" x2="' + pad.left + '" y2="' + baseY + '" stroke="#3a4757" stroke-width="1"/>')
+    grid.push('<line x1="' + pad.left + '" y1="' + baseY + '" x2="' + (width - pad.right) + '" y2="' + baseY + '" stroke="#3a4757" stroke-width="1"/>')
     const labels = series[0] && series[0].labels
       ? (() => {
         // Evenly spaced x labels including both ends: pick `shown` indices at
@@ -171,15 +209,126 @@
           // First label anchors left (away from the y axis), last anchors
           // right (away from the chart edge), middle stays centered.
           const anchor = i === 0 ? 'start' : i === count - 1 ? 'end' : 'middle'
-          return '<text x="' + x(i).toFixed(1) + '" y="' + (height - 6) + '" text-anchor="' + anchor + '" font-size="11" fill="#5d6b7d">' + label + '</text>'
+          return '<line x1="' + x(i).toFixed(1) + '" y1="' + baseY + '" x2="' + x(i).toFixed(1) + '" y2="' + (baseY + 4) + '" stroke="#3a4757" stroke-width="1"/>'
+            + '<text x="' + x(i).toFixed(1) + '" y="' + (height - 6) + '" text-anchor="' + anchor + '" font-size="11" fill="#93a1b3">' + label + '</text>'
         })
       })()
       : ''
     const paths = series.map((s, i) =>
-      '<path d="' + area(s) + '" fill="' + s.color + '" opacity="0.12"/>'
-      + '<path d="' + path(s) + '" fill="none" stroke="' + s.color + '" stroke-width="2" stroke-linejoin="round"/>')
-    return '<svg viewBox="0 0 ' + width + ' ' + height + '" xmlns="http://www.w3.org/2000/svg" role="img">'
-      + grid.join('') + labels + paths.join('') + '</svg>'
+      '<path d="' + area(s) + '" fill="url(#' + uid + '-' + i + ')"/>'
+      + '<path d="' + line(s) + '" fill="none" stroke="' + s.color + '" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>')
+    const dots = n <= 12 && n > 0
+      ? series.map(s => s.points.map((v, i) =>
+        '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3" fill="' + s.color + '" stroke="#0e1116" stroke-width="1.5"/>').join('')).join('')
+      : ''
+    return {
+      svg: '<svg viewBox="0 0 ' + width + ' ' + height + '" xmlns="http://www.w3.org/2000/svg" role="img">'
+        + '<defs>' + defs + '</defs>' + grid.join('') + labels + paths.join('') + dots + '</svg>',
+      meta: { pad, innerW, valueFormat, labels: series[0] ? series[0].labels : [], series },
+    }
+  }
+
+  function attachTooltip(holder, meta) {
+    const tip = el('div', { class: 'chart-tip' })
+    const guide = el('div', { class: 'chart-guide' })
+    holder.appendChild(tip)
+    holder.appendChild(guide)
+    const svg = holder.querySelector('svg')
+    const n = meta.series[0] ? meta.series[0].points.length : 0
+    holder.addEventListener('mousemove', (event) => {
+      const rect = svg.getBoundingClientRect()
+      if (rect.width === 0 || n === 0) return
+      const scale = 880 / rect.width
+      const lx = (event.clientX - rect.left) * scale
+      const idx = Math.round((lx - meta.pad.left) / meta.innerW * (n - 1))
+      const clamped = Math.max(0, Math.min(n - 1, idx))
+      const guideX = (meta.pad.left + meta.innerW * (clamped / Math.max(1, n - 1))) / 880 * rect.width
+      guide.style.left = guideX.toFixed(1) + 'px'
+      guide.style.display = 'block'
+      tip.replaceChildren(
+        el('div', { class: 'tip-title' }, meta.labels[clamped] ?? ''),
+        ...meta.series.map(s => el('div', { class: 'tip-row' }, [
+          el('span', { class: 'legend-dot', style: 'background:' + s.color }),
+          el('span', { class: 'tip-name' }, s.label),
+          el('span', { class: 'tip-value' }, meta.valueFormat(s.points[clamped])),
+        ])),
+      )
+      const holderRect = holder.getBoundingClientRect()
+      let left = event.clientX - holderRect.left + 14
+      if (left + tip.offsetWidth > holderRect.width - 8) left = event.clientX - holderRect.left - tip.offsetWidth - 14
+      tip.style.left = Math.max(8, left) + 'px'
+      tip.style.display = 'block'
+    })
+    holder.addEventListener('mouseleave', () => {
+      tip.style.display = 'none'
+      guide.style.display = 'none'
+    })
+  }
+
+  function donutChart(parts, opts) {
+    const size = (opts && opts.size) || 180
+    const stroke = (opts && opts.stroke) || 26
+    const cx = size / 2
+    const cy = size / 2
+    const r = (size - stroke) / 2 - 2
+    const total = parts.reduce((sum, p) => sum + p.value, 0)
+    const segments = total <= 0 ? [] : parts.filter(p => p.value > 0)
+    let angle = -Math.PI / 2
+    const arcs = segments.map(p => {
+      const frac = p.value / total
+      const a2 = angle + frac * 2 * Math.PI
+      const large = frac > 0.5 ? 1 : 0
+      const x1 = cx + r * Math.cos(angle)
+      const y1 = cy + r * Math.sin(angle)
+      const x2 = cx + r * Math.cos(a2)
+      const y2 = cy + r * Math.sin(a2)
+      angle = a2
+      return '<path d="M' + x1.toFixed(1) + ' ' + y1.toFixed(1) + ' A' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 ' + large + ' 1 ' + x2.toFixed(1) + ' ' + y2.toFixed(1) + '" fill="none" stroke="' + p.color + '" stroke-width="' + stroke + '"/>'
+    })
+    const center = (opts && opts.centerText)
+      ? '<text x="' + cx + '" y="' + (cy + 5) + '" text-anchor="middle" font-size="15" font-weight="650" fill="#e6ebf2">' + opts.centerText + '</text>'
+      : ''
+    return {
+      svg: '<svg viewBox="0 0 ' + size + ' ' + size + '" xmlns="http://www.w3.org/2000/svg" role="img">' + arcs.join('') + center + '</svg>',
+    }
+  }
+
+  function groupedBars(categories, groups, opts) {
+    const width = 880
+    const height = (opts && opts.height) || 240
+    const pad = { top: 18, right: 14, bottom: 30, left: 64 }
+    const innerW = width - pad.left - pad.right
+    const innerH = height - pad.top - pad.bottom
+    const format = (opts && opts.format) || fmt.tokens
+    let max = 1
+    for (const c of categories) for (const v of c.values) if (v > max) max = v
+    max = niceMax(max)
+    const y = v => pad.top + innerH - (v / max) * innerH
+    const baseY = pad.top + innerH
+    const groupW = innerW / Math.max(1, categories.length)
+    const barW = Math.min(34, groupW / (groups.length + 1.2))
+    const parts = []
+    const steps = 4
+    for (let i = 0; i <= steps; i++) {
+      const v = (max / steps) * i
+      parts.push('<line x1="' + pad.left + '" y1="' + y(v).toFixed(1) + '" x2="' + (width - pad.right) + '" y2="' + y(v).toFixed(1) + '" stroke="#232b36" stroke-width="1"/>')
+      parts.push('<text x="' + (pad.left - 10) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="#93a1b3">' + format(v) + '</text>')
+    }
+    parts.push('<line x1="' + pad.left + '" y1="' + pad.top + '" x2="' + pad.left + '" y2="' + baseY + '" stroke="#3a4757" stroke-width="1"/>')
+    parts.push('<line x1="' + pad.left + '" y1="' + baseY + '" x2="' + (width - pad.right) + '" y2="' + baseY + '" stroke="#3a4757" stroke-width="1"/>')
+    categories.forEach((c, ci) => {
+      const gx = pad.left + ci * groupW + groupW / 2 - (groups.length * barW + (groups.length - 1) * 3) / 2
+      c.values.forEach((v, gi) => {
+        const bx = gx + gi * (barW + 3)
+        const bh = (v / max) * innerH
+        parts.push('<rect x="' + bx.toFixed(1) + '" y="' + (baseY - bh).toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' + Math.max(0, bh).toFixed(1) + '" rx="3" fill="' + groups[gi].color + '" opacity="0.9"/>')
+        if (v > 0) {
+          parts.push('<text x="' + (bx + barW / 2).toFixed(1) + '" y="' + (baseY - bh - 5).toFixed(1) + '" text-anchor="middle" font-size="10" fill="#93a1b3">' + format(v) + '</text>')
+        }
+      })
+      parts.push('<text x="' + (pad.left + ci * groupW + groupW / 2).toFixed(1) + '" y="' + (height - 7) + '" text-anchor="middle" font-size="11" fill="#93a1b3">' + c.label + '</text>')
+    })
+    return { svg: '<svg viewBox="0 0 ' + width + ' ' + height + '" xmlns="http://www.w3.org/2000/svg" role="img">' + parts.join('') + '</svg>' }
   }
 
   function niceMax(value) {
@@ -229,6 +378,8 @@
       'comp.input': 'Uncached input', 'comp.cacheRead': 'Cache read', 'comp.cacheWrite': 'Cache write', 'comp.output': 'Output',
       'legend.input': 'Input', 'legend.cacheRead': 'Cache read', 'legend.cacheWrite': 'Cache write',
       'legend.output': 'Output', 'legend.cost': 'Cost',
+      'panel.cacheTrend': 'Cache Hit Rate Trend', 'panel.turnCost': 'Turn Cost',
+      'panel.priceCompare': 'Latest peak rates per 1M tokens', 'other': 'Other',
       'table.titleCwd': 'Title / cwd', 'table.session': 'Session', 'table.created': 'Created',
       'table.calls': 'Calls', 'table.tokens': 'Tokens', 'table.cost': 'Cost', 'table.model': 'Model',
       'table.provider': 'Provider', 'table.input': 'Input', 'table.cache': 'Cache',
@@ -265,6 +416,8 @@
       'comp.input': '未缓存输入', 'comp.cacheRead': '缓存读取', 'comp.cacheWrite': '缓存写入', 'comp.output': '输出',
       'legend.input': '输入', 'legend.cacheRead': '缓存读取', 'legend.cacheWrite': '缓存写入',
       'legend.output': '输出', 'legend.cost': '成本',
+      'panel.cacheTrend': '缓存命中率趋势', 'panel.turnCost': 'Turn 成本',
+      'panel.priceCompare': '最新价格：每百万 Token（peak）', 'other': '其他',
       'table.titleCwd': '标题 / 工作目录', 'table.session': '会话', 'table.created': '创建时间',
       'table.calls': '调用', 'table.tokens': 'Token', 'table.cost': '成本', 'table.model': '模型',
       'table.provider': '提供方', 'table.input': '输入', 'table.cache': '缓存',
@@ -350,13 +503,73 @@
       ]))
     }
 
-    main.push(el('div', { class: 'grid-2' }, [
-      panel(t('panel.composition'), [compositionBar(overview.totals)]),
-      panel(t('panel.costByModel'), [modelList(overview.byModel)]),
-    ]))
+    const cacheActive = overview.trend.filter(p => p.cacheReadTokens + p.inputTokens > 0)
+    if (cacheActive.length > 0) {
+      const cacheSeries = [{
+        label: t('kpi.cache'),
+        color: PALETTE[1],
+        labels: cacheActive.map(p => overview.trend.length > 48 ? fmt.date(p.bucketStart) : fmt.timeShort(p.bucketStart)),
+        points: cacheActive.map(p => p.cacheReadTokens / (p.cacheReadTokens + p.inputTokens)),
+      }]
+      main.push(el('div', { class: 'grid-2' }, [
+        panel(t('panel.composition'), compositionPanel(overview.totals)),
+        panel(t('panel.cacheTrend'), [
+          chart(lineChart(cacheSeries, { height: 220, yFormat: fmt.pct, valueFormat: fmt.pct }), true),
+        ]),
+      ]))
+    } else {
+      main.push(panel(t('panel.composition'), compositionPanel(overview.totals)))
+    }
 
-    main.push(panel(t('panel.sessions'), [sessionTable(overview.bySession.slice(0, 6))]))
+    main.push(el('div', { class: 'grid-2' }, [
+      panel(t('panel.costByModel'), costModelDonut(overview.byModel)),
+      panel(t('panel.sessions'), [sessionTable(overview.bySession.slice(0, 6))]),
+    ]))
     return main
+  }
+
+  function compositionPanel(totals) {
+    const parts = [
+      { label: t('comp.input'), value: totals.inputTokens, color: PALETTE[0] },
+      { label: t('comp.cacheRead'), value: totals.cacheReadTokens, color: PALETTE[1] },
+      { label: t('comp.cacheWrite'), value: totals.cacheWriteTokens, color: PALETTE[2] },
+      { label: t('comp.output'), value: totals.outputTokens, color: PALETTE[3] },
+    ].filter(p => p.value > 0)
+    if (parts.length === 0) return el('div', { class: 'dim' }, t('state.emptyRequests'))
+    const sum = Math.max(1, totals.totalTokens)
+    return [
+      el('div', { class: 'donut-wrap' }, [
+        chart(donutChart(parts, { centerText: fmt.tokens(totals.totalTokens) })),
+        el('div', { class: 'donut-legend' }, parts.map(p => el('div', { class: 'metric-bar' }, [
+          el('span', { class: 'legend-dot', style: 'background:' + p.color }),
+          el('span', { class: 'm-label', style: 'text-align:left;flex:1;width:auto' }, p.label),
+          el('span', { class: 'm-value' }, fmt.pct(p.value / sum) + ' · ' + fmt.tokens(p.value)),
+        ]))),
+      ]),
+    ]
+  }
+
+  function costModelDonut(models) {
+    const costOf = m => (m.cost[0] && m.cost[0].amount) || 0
+    const sorted = [...models].sort((a, b) => costOf(b) - costOf(a))
+    if (sorted.length === 0) return el('div', { class: 'dim' }, t('state.emptyModels'))
+    const top = sorted.slice(0, 6)
+    const rest = sorted.slice(6).reduce((sum, m) => sum + costOf(m), 0)
+    const parts = top.map((m, i) => ({ label: m.model, value: costOf(m), color: PALETTE[i % PALETTE.length] }))
+    if (rest > 0) parts.push({ label: t('other'), value: rest, color: '#5d6b7d' })
+    const totalCost = sorted.reduce((sum, m) => sum + costOf(m), 0)
+    const currency = sorted.find(m => m.cost[0])?.cost[0]?.currency
+    const center = currency === undefined ? fmt.tokens(totalCost) : fmt.money(totalCost, currency)
+    return [
+      el('div', { class: 'donut-wrap' }, [
+        chart(donutChart(parts, { centerText: center })),
+        el('div', { class: 'donut-legend' }, parts.map(p => el('div', { class: 'metric-bar' }, [
+          el('span', { class: 'legend-dot', style: 'background:' + p.color }),
+          el('span', { class: 'm-label', style: 'text-align:left;flex:1;width:auto', title: p.label }, p.label),
+          el('span', { class: 'm-value' }, currency === undefined ? fmt.tokens(p.value) : fmt.money(p.value, currency)),
+        ]))),
+      ]),
+    ]
   }
 
   function budgetPanel(budget) {
@@ -471,6 +684,20 @@
       turnRows,
     )))
 
+    const turnCurrency = detail.cost[0]?.currency
+    if (turnCurrency !== undefined && detail.turns.length > 0) {
+      const categories = detail.turns.map(turn => ({
+        label: '#' + String(turn.turn).padStart(2, '0'),
+        values: [turn.cost.reduce((sum, entry) => sum + entry.amount, 0)],
+      }))
+      main.push(panel(t('panel.turnCost'), [
+        chart(groupedBars(categories, [{ label: t('table.cost'), color: PALETTE[0] }], {
+          height: 200,
+          format: v => fmt.money(v, turnCurrency),
+        }), true),
+      ]))
+    }
+
     const cumulative = []
     let running = 0
     for (const request of detail.requests) {
@@ -524,7 +751,7 @@
         chart(lineChart(series, { height: 300 })),
         legend(series.map(s => ({ label: s.label, color: s.color }))),
       ]),
-      panel(t('panel.perBucket'), [compositionBar(overview.totals)]),
+      panel(t('panel.composition'), compositionPanel(overview.totals)),
     ]
   }
 
@@ -567,7 +794,7 @@
       main.push(panel(t('panel.costTrend'), [chart(lineChart(series, { height: 200 }), true)]))
     }
     main.push(el('div', { class: 'grid-2' }, [
-      panel(t('panel.costByModel'), [modelList(overview.byModel)]),
+      panel(t('panel.costByModel'), costModelDonut(overview.byModel)),
       panel(t('panel.costBySession'), [sessionCostList(overview.bySession)]),
     ]))
     if (tools.length > 0) {
@@ -609,6 +836,26 @@
     if (rows.length === 0) {
       return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyPricing')))]
     }
+    const models = [...new Set(rows.map(row => row.model))]
+    const groups = [
+      { label: 'cache_hit', color: PALETTE[1] },
+      { label: 'cache_miss', color: PALETTE[0] },
+      { label: 'output', color: PALETTE[3] },
+    ]
+    const latest = (model, bucket) => {
+      const candidates = rows.filter(row => row.model === model && row.inputType === bucket && (row.priceType === 'peak' || row.priceType === 'flat'))
+      if (candidates.length === 0) return 0
+      const maxFrom = Math.max(...candidates.map(row => Date.parse(row.effectiveFrom)))
+      return candidates.find(row => Date.parse(row.effectiveFrom) === maxFrom)?.pricePerMillion ?? 0
+    }
+    const categories = models.map(model => ({ label: model, values: groups.map(group => latest(model, group.inputType)) }))
+    const priceFormat = v => '$' + (v < 1 ? v.toFixed(3) : v.toFixed(2))
+    const main = [
+      panel(t('panel.priceCompare'), [
+        chart(groupedBars(categories, groups, { height: 220, format: priceFormat })),
+        legend(groups.map(group => ({ label: group.label, color: group.color }))),
+      ]),
+    ]
     const formatted = rows.map(row => ({
       cells: [
         row.model,
@@ -620,10 +867,11 @@
         row.effectiveTo ? fmt.time(Date.parse(row.effectiveTo)) : t('table.now'),
       ],
     }))
-    return [panel(t('panel.pricingTable', rows.length), table(
+    main.push(panel(t('panel.pricingTable', rows.length), table(
       [{ label: t('table.model') }, { label: t('table.provider') }, { label: t('table.window') }, { label: t('table.bucket') }, { label: t('table.price'), align: 'right' }, { label: t('table.effectiveFrom') }, { label: t('table.effectiveTo') }],
       formatted,
-    ))]
+    )))
+    return main
   }
 
   function sessionTable(sessions) {

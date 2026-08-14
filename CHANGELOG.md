@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5 — 2026-08-14
+
+- Line charts: visible axes (left + bottom), tick marks, gradient area fills, smooth curves, data-point dots on sparse series, and a hover tooltip with a guide line.
+- More visualizations: token-composition and cost-by-model donut charts, cache hit-rate trend line on Overview, per-turn cost bars on session detail, and a latest-rate price comparison bar chart on the Pricing page.
+
 ## 0.1.4 — 2026-08-14
 
 - Breathing-room pass: wider page/padding/gaps, roomier KPI cards and tables, bigger chart, and a single combined trend panel on Overview (the separate Cost Trend panel moved to the Cost page only).
