@@ -196,6 +196,33 @@ export interface SessionAnalytics extends SessionSummary {
   cache: CacheSummary
 }
 
+/** One session node in the parent/child agent tree. */
+export interface AgentNode {
+  sessionId: string
+  cwd?: string
+  title?: string
+  parentSession?: string
+  createdAt: number
+  apiCalls: number
+  totalTokens: number
+  cost: CostSummary[]
+  children: AgentNode[]
+}
+
+/** One rule-produced optimization insight. */
+export interface Insight {
+  kind:
+    | 'reasoning-effort'
+    | 'cache-low'
+    | 'tool-concentration'
+    | 'unpriced'
+    | 'budget-monthly'
+    | 'subagent-share'
+    | 'context-growth'
+  severity: 'info' | 'warn' | 'danger'
+  values: Record<string, string | number>
+}
+
 const HOUR_MS = 3_600_000
 const DAY_MS = 24 * HOUR_MS
 
@@ -435,30 +462,8 @@ export class AnalyticsLocal extends AnalyticsService {
       byModel.set(key, entry)
     }
 
-    const bySession = new Map<string, SessionSummary>()
-    for (const { record, cost: requestCost } of costed) {
-      const row = sessionRows.get(record.sessionId)
-      const entry = bySession.get(record.sessionId) ?? {
-        sessionId: record.sessionId,
-        ...(row?.cwd === undefined ? {} : { cwd: row.cwd }),
-        ...(row?.title === undefined ? {} : { title: row.title }),
-        ...(row?.parentSession === undefined ? {} : { parentSession: row.parentSession }),
-        createdAt: row?.createdAt ?? 0,
-        apiCalls: 0,
-        unpricedCalls: 0,
-        totalTokens: 0,
-        cost: [] as CostSummary[],
-      }
-      entry.apiCalls += 1
-      if (requestCost !== undefined && !requestCost.priced) entry.unpricedCalls += 1
-      entry.totalTokens += record.inputTokens + record.cacheReadTokens + record.cacheWriteTokens + record.outputTokens
-      if (requestCost !== undefined && requestCost.cost > 0) {
-        const existing = entry.cost.find(summary => summary.currency === requestCost.currency)
-        if (existing === undefined) entry.cost.push({ currency: requestCost.currency, amount: requestCost.cost })
-        else existing.amount += requestCost.cost
-      }
-      bySession.set(record.sessionId, entry)
-    }
+    const bySessionList = await this.sessionSummaries(range)
+    const bySession = new Map(bySessionList.map(summary => [summary.sessionId, summary]))
 
     return {
       range,
@@ -472,9 +477,123 @@ export class AnalyticsLocal extends AnalyticsService {
       },
       trend: this.buildTrend(costed, range),
       byModel: [...byModel.values()].sort((a, b) => this.costAmount(b.cost) - this.costAmount(a.cost)),
-      bySession: [...bySession.values()].sort((a, b) => b.createdAt - a.createdAt),
+      bySession: bySessionList,
       ...(this.deps.budget === undefined ? {} : { budget: await this.budget() }),
     }
+  }
+
+  async agents(request?: AnalyticsRange): Promise<AgentNode[]> {
+    const summaries = await this.sessionSummaries(this.resolveRange(request))
+    const nodes = new Map<string, AgentNode>()
+    for (const summary of summaries) {
+      nodes.set(summary.sessionId, {
+        sessionId: summary.sessionId,
+        ...(summary.cwd === undefined ? {} : { cwd: summary.cwd }),
+        ...(summary.title === undefined ? {} : { title: summary.title }),
+        ...(summary.parentSession === undefined ? {} : { parentSession: summary.parentSession }),
+        createdAt: summary.createdAt,
+        apiCalls: summary.apiCalls,
+        totalTokens: summary.totalTokens,
+        cost: summary.cost,
+        children: [],
+      })
+    }
+    const roots: AgentNode[] = []
+    for (const node of nodes.values()) {
+      const parentId = node.parentSession
+      const parent = parentId !== undefined ? nodes.get(parentId) : undefined
+      if (parent !== undefined) parent.children.push(node)
+      else roots.push(node)
+    }
+    const byCost = (a: AgentNode, b: AgentNode) => this.costAmount(b.cost) - this.costAmount(a.cost)
+    for (const node of nodes.values()) node.children.sort(byCost)
+    return roots.sort(byCost)
+  }
+
+  async insights(request?: AnalyticsRange): Promise<Insight[]> {
+    const range = this.resolveRange(request)
+    const [overview, reasoning, agents, tools] = await Promise.all([
+      this.overview(range),
+      this.reasoning(range),
+      this.agents(range),
+      this.tools(range),
+    ])
+    const insights: Insight[] = []
+    const maxEffort = reasoning.find(row => row.reasoningEffort === 'max')
+    const highEffort = reasoning.find(row => row.reasoningEffort === 'high')
+    if (maxEffort !== undefined && highEffort !== undefined
+      && maxEffort.costPerSuccess.length > 0 && highEffort.costPerSuccess.length > 0) {
+      const maxCost = this.costAmount(maxEffort.costPerSuccess)
+      const highCost = this.costAmount(highEffort.costPerSuccess)
+      const successDelta = maxEffort.successRate - highEffort.successRate
+      if (highCost > 0 && maxCost >= highCost * 1.5 && successDelta < 0.05) {
+        insights.push({
+          kind: 'reasoning-effort',
+          severity: 'warn',
+          values: {
+            maxCost: Math.round(maxCost * 1000) / 1000,
+            highCost: Math.round(highCost * 1000) / 1000,
+            successDelta: Math.round(successDelta * 100) / 100,
+          },
+        })
+      }
+    }
+    if (overview.totals.apiCalls > 0 && overview.cache.hitRate < 0.5) {
+      insights.push({
+        kind: 'cache-low',
+        severity: 'warn',
+        values: { hitRate: Math.round(overview.cache.hitRate * 100) / 100 },
+      })
+    }
+    const topTool = tools[0]
+    const totalCost = this.costAmount(overview.cost)
+    if (topTool !== undefined && topTool.cost.length > 0 && totalCost > 0) {
+      const share = this.costAmount(topTool.cost) / totalCost
+      if (share > 0.35) {
+        insights.push({
+          kind: 'tool-concentration',
+          severity: 'info',
+          values: { tool: topTool.name, share: Math.round(share * 100) / 100 },
+        })
+      }
+    }
+    if (overview.totals.unpricedCalls > 0) {
+      insights.push({ kind: 'unpriced', severity: 'info', values: { count: overview.totals.unpricedCalls } })
+    }
+    const budget = await this.budget()
+    if (budget.monthly !== undefined && budget.monthly.ratio >= 0.8) {
+      insights.push({
+        kind: 'budget-monthly',
+        severity: budget.monthly.ratio >= 1 ? 'danger' : 'warn',
+        values: {
+          spent: Math.round(budget.monthly.spent * 100) / 100,
+          limit: budget.monthly.limit,
+          ratio: Math.round(budget.monthly.ratio * 100) / 100,
+        },
+      })
+    }
+    const subagentCost = agents.reduce((sum, root) => {
+      const walk = (node: AgentNode): number => this.costAmount(node.cost)
+        + node.children.reduce((childSum, child) => childSum + walk(child), 0)
+      return sum + walk(root) - this.costAmount(root.cost)
+    }, 0)
+    if (totalCost > 0 && subagentCost / totalCost > 0.4) {
+      insights.push({
+        kind: 'subagent-share',
+        severity: 'info',
+        values: { share: Math.round((subagentCost / totalCost) * 100) / 100 },
+      })
+    }
+    const largest = overview.bySession.find(session => session.apiCalls >= 10 && session.totalTokens >= 500_000)
+    if (largest !== undefined) {
+      insights.push({
+        kind: 'context-growth',
+        severity: 'info',
+        values: { session: largest.sessionId, tokens: largest.totalTokens, calls: largest.apiCalls },
+      })
+    }
+    const rank = { danger: 0, warn: 1, info: 2 } as const
+    return insights.sort((a, b) => rank[a.severity] - rank[b.severity])
   }
 
   async session(sessionId: string): Promise<SessionAnalytics> {
@@ -668,6 +787,38 @@ export class AnalyticsLocal extends AnalyticsService {
       start: request?.start ?? 0,
       end: request?.end ?? Date.now(),
     }
+  }
+
+  private async sessionSummaries(range: { start: number; end: number }): Promise<SessionSummary[]> {
+    const store = this.deps.store
+    const requests = store.requests(range)
+    const costed = costRequests(requests, this.deps.engine)
+    const sessionRows = new Map(store.sessions().map(row => [row.sessionId, row]))
+    const bySession = new Map<string, SessionSummary>()
+    for (const { record, cost: requestCost } of costed) {
+      const row = sessionRows.get(record.sessionId)
+      const entry = bySession.get(record.sessionId) ?? {
+        sessionId: record.sessionId,
+        ...(row?.cwd === undefined ? {} : { cwd: row.cwd }),
+        ...(row?.title === undefined ? {} : { title: row.title }),
+        ...(row?.parentSession === undefined ? {} : { parentSession: row.parentSession }),
+        createdAt: row?.createdAt ?? 0,
+        apiCalls: 0,
+        unpricedCalls: 0,
+        totalTokens: 0,
+        cost: [] as CostSummary[],
+      }
+      entry.apiCalls += 1
+      if (requestCost !== undefined && !requestCost.priced) entry.unpricedCalls += 1
+      entry.totalTokens += record.inputTokens + record.cacheReadTokens + record.cacheWriteTokens + record.outputTokens
+      if (requestCost !== undefined && requestCost.cost > 0) {
+        const existing = entry.cost.find(summary => summary.currency === requestCost.currency)
+        if (existing === undefined) entry.cost.push({ currency: requestCost.currency, amount: requestCost.cost })
+        else existing.amount += requestCost.cost
+      }
+      bySession.set(record.sessionId, entry)
+    }
+    return [...bySession.values()].sort((a, b) => b.createdAt - a.createdAt)
   }
 
   private preferCurrency(costs: CostSummary[]): CostSummary[] {

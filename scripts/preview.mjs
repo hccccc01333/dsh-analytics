@@ -76,6 +76,29 @@ seedRequest({ sessionId: 'session-3', seq: 3, turn: 3, model: 'deepseek-v4-flash
 seedRequest({ sessionId: 'session-4', seq: 1, turn: 1, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 75 * 3600000, input: 9800, cacheRead: 1400, output: 1500, reasoning: 4200 })
 seedRequest({ sessionId: 'session-4', seq: 2, turn: 2, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 73 * 3600000, input: 21400, cacheRead: 3900, output: 2600, reasoning: 8100 })
 
+// Subagent sessions under session-1 (today's task) for the agent tree demo.
+store.upsertSession({ sessionId: 'session-1-search', createdAt: NOW - 3.2 * 3600000, parentSession: 'session-1', cwd: 'D:/work/pokemon-bcrl', title: 'search subagent' })
+seedRequest({ sessionId: 'session-1-search', seq: 1, turn: 1, model: 'deepseek-v4-flash', reasoningEffort: 'high', time: NOW - 3.2 * 3600000, input: 5200, cacheRead: 800, output: 900, reasoning: 1500 })
+seedTool('session-1-search', 11, 1, 1, 'web_search', 'c5')
+store.upsertSession({ sessionId: 'session-1-review', createdAt: NOW - 2.1 * 3600000, parentSession: 'session-1', cwd: 'D:/work/pokemon-bcrl', title: 'review subagent' })
+seedRequest({ sessionId: 'session-1-review', seq: 1, turn: 1, model: 'deepseek-v4-pro', reasoningEffort: 'max', time: NOW - 2.1 * 3600000, input: 8400, cacheRead: 1900, output: 1400, reasoning: 3600 })
+
+// Turn records: duration + outcome feed the waterfall and reasoning page.
+const turnSeeds = [
+  ['session-1', 1, NOW - 4.95 * 3600000, 42, 'completed'],
+  ['session-1', 2, NOW - 4.25 * 3600000, 67, 'completed'],
+  ['session-1', 3, NOW - 3.45 * 3600000, 95, 'completed'],
+  ['session-1', 4, NOW - 2.65 * 3600000, 148, 'completed'],
+  ['session-1', 5, NOW - 1.85 * 3600000, 203, 'error'],
+  ['session-1', 6, NOW - 0.95 * 3600000, 121, 'completed'],
+  ['session-1-search', 1, NOW - 3.25 * 3600000, 51, 'completed'],
+  ['session-1-review', 1, NOW - 2.15 * 3600000, 76, 'completed'],
+]
+for (const [sessionId, turn, startTime, seconds, reason] of turnSeeds) {
+  store.upsertTurnStart({ sessionId, turn, startTime })
+  store.upsertTurnEnd({ sessionId, turn, endTime: startTime + seconds * 1000, reason })
+}
+
 const ctx = new Context()
 await ctx.plugin(AnalyticsLocal, { store, engine: new PricingEngine(DEFAULT_PRICING), budget: { daily: 10, monthly: 100, currency: 'USD' } })
 

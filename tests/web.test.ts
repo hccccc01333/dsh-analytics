@@ -114,6 +114,13 @@ test('JSON API routes answer from the analytics service', async () => {
     assert.equal(reasoning.status, 200)
     assert.ok(Array.isArray(JSON.parse(reasoning.body)))
 
+    const agents = await request(server.routes.get('/api/analytics/agents')!, 'GET', '/api/analytics/agents')
+    assert.equal(agents.status, 200)
+    assert.ok(Array.isArray(JSON.parse(agents.body)))
+    const insights = await request(server.routes.get('/api/analytics/insights')!, 'GET', '/api/analytics/insights')
+    assert.equal(insights.status, 200)
+    assert.ok(Array.isArray(JSON.parse(insights.body)))
+
     const missingId = await request(server.routes.get('/api/analytics/session')!, 'GET', '/api/analytics/session/')
     assert.equal(missingId.status, 400)
   } finally {

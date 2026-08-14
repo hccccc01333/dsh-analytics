@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.0 — 2026-08-14
+
+- SubAgent ROI: `ctx.analytics.agents()` builds the parent/child agent cost tree; new Agents dashboard page (tree rows with cost bars, top-level cost donut, click-through to session drill-down), `/api/analytics/agents` route, `analytics_query(query="agents")`.
+- Optimization Insights: `ctx.analytics.insights()` runs rules over reasoning, cache, tool, budget, subagent, and context data; new Insights dashboard page renders severity-coded suggestion cards, plus `/api/analytics/insights` route and `analytics_query(query="insights")`.
+- Preview seed now includes a subagent hierarchy and turn durations for the new pages.
+
 ## 0.2.0 — 2026-08-14
 
 - Turn-level data: `turn/start` / `turn/end` are folded into a turns ledger (duration + outcome); session drill-down turns now show duration and success.

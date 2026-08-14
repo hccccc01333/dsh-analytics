@@ -6,9 +6,11 @@
 
 import { Service, type Context } from '@deepseek-ai/cordis'
 import type {
+  AgentNode,
   AnalyticsOverview,
   AnalyticsRange,
   BudgetSummary,
+  Insight,
   ReasoningSummary,
   ModelSummary,
   SessionAnalytics,
@@ -70,6 +72,20 @@ export abstract class AnalyticsService extends Service {
    * @returns one summary per tool name; cost is step-level attribution.
    */
   abstract tools(request?: AnalyticsRange): Promise<ToolSummary[]>
+
+  /**
+   * Parent/child agent cost tree over a time range.
+   * @param request - optional time bounds.
+   * @returns top-level sessions with recursive subagent children.
+   */
+  abstract agents(request?: AnalyticsRange): Promise<AgentNode[]>
+
+  /**
+   * Rule-produced optimization insights over a time range.
+   * @param request - optional time bounds.
+   * @returns structured suggestions ordered by severity.
+   */
+  abstract insights(request?: AnalyticsRange): Promise<Insight[]>
 
   /**
    * Reasoning-effort efficiency over a time range.

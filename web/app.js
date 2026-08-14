@@ -15,6 +15,8 @@
     models(hours) { return get('/api/analytics/models' + qs({ hours })) },
     tools(hours) { return get('/api/analytics/tools' + qs({ hours })) },
     reasoning(hours) { return get('/api/analytics/reasoning' + qs({ hours })) },
+    agents(hours) { return get('/api/analytics/agents' + qs({ hours })) },
+    insights(hours) { return get('/api/analytics/insights' + qs({ hours })) },
     pricing() { return get('/api/analytics/pricing') },
     budget() { return get('/api/analytics/budget') },
   }
@@ -362,7 +364,8 @@
   const I18N = {
     en: {
       'tabs.overview': 'Overview', 'tabs.sessions': 'Sessions', 'tabs.flow': 'Token Flow',
-      'tabs.models': 'Models', 'tabs.cost': 'Cost', 'tabs.reasoning': 'Reasoning', 'tabs.pricing': 'Pricing',
+      'tabs.models': 'Models', 'tabs.cost': 'Cost', 'tabs.reasoning': 'Reasoning',
+      'tabs.agents': 'Agents', 'tabs.insights': 'Insights', 'tabs.pricing': 'Pricing',
       'kpi.cost': 'Total Cost', 'kpi.tokens': 'Total Tokens', 'kpi.cache': 'Cache Hit Rate',
       'kpi.reasoning': 'Reasoning Share', 'kpi.calls': 'API Calls', 'kpi.tools': 'Tool Calls',
       'kpi.unpriced': 'unpriced', 'kpi.sessions': 'sessions', 'kpi.reasoningTokens': 'reasoning tokens',
@@ -383,6 +386,15 @@
       'reasoning.duration': 'Avg Duration by Effort', 'reasoning.costPerSuccess': 'Cost per Success',
       'reasoning.costByEffort': 'Cost by Effort', 'reasoning.table': 'Reasoning Efficiency',
       'table.duration': 'Duration', 'table.avgDuration': 'Avg duration', 'table.outcome': 'Outcome', 'table.effort': 'Effort',
+      'agents.title': 'Agent Cost Tree', 'agents.byRoot': 'Cost by Top-Level Agent',
+      'insights.title': 'Optimization Insights', 'insights.none': 'No actionable insights in range.',
+      'insight.reasoning-effort': 'MAX costs {maxCost} per success vs {highCost} for HIGH while success only improves {successDelta} — consider HIGH.',
+      'insight.cache-low': 'Cache hit rate is only {hitRate} — check system-prompt prefix stability.',
+      'insight.tool-concentration': '{tool} drives {share}% of step-attributed cost.',
+      'insight.unpriced': '{count} API calls have no matching price rows — check the pricing table.',
+      'insight.budget-monthly': 'Monthly budget at {ratio}% ({spent} / {limit}) — projected to exceed.',
+      'insight.subagent-share': 'Subagents account for {share}% of total cost.',
+      'insight.context-growth': 'Session {session} reached {tokens} across {calls} calls — consider compaction.',
       'table.titleCwd': 'Title / cwd', 'table.session': 'Session', 'table.created': 'Created',
       'table.calls': 'Calls', 'table.tokens': 'Tokens', 'table.cost': 'Cost', 'table.model': 'Model',
       'table.provider': 'Provider', 'table.input': 'Input', 'table.cache': 'Cache',
@@ -403,7 +415,8 @@
     },
     zh: {
       'tabs.overview': '概览', 'tabs.sessions': '会话', 'tabs.flow': 'Token 流',
-      'tabs.models': '模型', 'tabs.cost': '成本', 'tabs.reasoning': '推理效率', 'tabs.pricing': '定价',
+      'tabs.models': '模型', 'tabs.cost': '成本', 'tabs.reasoning': '推理效率',
+      'tabs.agents': '子代理', 'tabs.insights': '优化建议', 'tabs.pricing': '定价',
       'kpi.cost': '总成本', 'kpi.tokens': '总 Token', 'kpi.cache': '缓存命中率',
       'kpi.reasoning': '推理占比', 'kpi.calls': 'API 调用', 'kpi.tools': '工具调用',
       'kpi.unpriced': '未计价', 'kpi.sessions': '个会话', 'kpi.reasoningTokens': '推理 Token',
@@ -424,6 +437,15 @@
       'reasoning.duration': '各档平均耗时', 'reasoning.costPerSuccess': '每次成功成本',
       'reasoning.costByEffort': '各档成本', 'reasoning.table': '推理效率明细',
       'table.duration': '耗时', 'table.avgDuration': '平均耗时', 'table.outcome': '结果', 'table.effort': '档位',
+      'agents.title': '子代理成本树', 'agents.byRoot': '按顶层 Agent 成本',
+      'insights.title': '成本优化建议', 'insights.none': '当前范围内暂无建议。',
+      'insight.reasoning-effort': 'MAX 每次成功成本 {maxCost}，对比 HIGH 的 {highCost}，成功率仅提升 {successDelta}——建议改用 HIGH。',
+      'insight.cache-low': '缓存命中率仅 {hitRate}——检查 System Prompt 前缀稳定性。',
+      'insight.tool-concentration': '{tool} 占步骤归因成本的 {share}%。',
+      'insight.unpriced': '{count} 次 API 调用没有匹配的价格行——检查定价表。',
+      'insight.budget-monthly': '月度预算已达 {ratio}%（{spent} / {limit}）——预计超支。',
+      'insight.subagent-share': '子代理占总成本的 {share}%。',
+      'insight.context-growth': '会话 {session} 已达 {tokens}，共 {calls} 次调用——建议考虑压缩。',
       'table.titleCwd': '标题 / 工作目录', 'table.session': '会话', 'table.created': '创建时间',
       'table.calls': '调用', 'table.tokens': 'Token', 'table.cost': '成本', 'table.model': '模型',
       'table.provider': '提供方', 'table.input': '输入', 'table.cache': '缓存',
@@ -447,9 +469,14 @@
   const langParam = new URLSearchParams(location.search).get('lang')
   let locale = langParam === 'zh' || localStorage.getItem('dsh-analytics-locale') === 'zh' ? 'zh' : 'en'
 
-  function t(key, n) {
+  function t(key, params) {
     let text = (I18N[locale] && I18N[locale][key]) ?? key
-    if (n !== undefined) text = text.replace('{n}', String(n))
+    const values = typeof params === 'number' ? { n: params } : params
+    if (values !== undefined) {
+      for (const [name, value] of Object.entries(values)) {
+        text = text.split('{' + name + '}').join(String(value))
+      }
+    }
     return text
   }
 
@@ -474,6 +501,8 @@
     ['models', 'tabs.models'],
     ['cost', 'tabs.cost'],
     ['reasoning', 'tabs.reasoning'],
+    ['agents', 'tabs.agents'],
+    ['insights', 'tabs.insights'],
     ['pricing', 'tabs.pricing'],
   ]
 
@@ -889,6 +918,99 @@
     ]
   }
 
+  async function renderAgents() {
+    const roots = await api.agents(state.hours)
+    if (roots.length === 0) {
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyRequests')))]
+    }
+    const maxCost = Math.max(1, ...(function walk(list) {
+      return list.flatMap(node => [costAmountOf(node.cost), ...walk(node.children)])
+    })(roots))
+    const rows = []
+    const walk = (node, depth) => {
+      rows.push({ node, depth })
+      for (const child of node.children) walk(child, depth + 1)
+    }
+    for (const root of roots) walk(root, 0)
+    const tree = el('div', { class: 'agent-tree' }, rows.map(({ node, depth }) => {
+      const cost = costAmountOf(node.cost)
+      return el('div', {
+        class: 'agent-row',
+        style: 'padding-left:' + (14 + depth * 26) + 'px',
+        onclick: () => navigate('#/session/' + encodeURIComponent(node.sessionId)),
+      }, [
+        el('span', { class: 'agent-glyph' }, depth === 0 ? '◆' : node.children.length > 0 ? '◈' : '•'),
+        el('span', { class: 'agent-name', title: node.title ?? node.cwd ?? node.sessionId }, node.title ?? node.cwd ?? node.sessionId),
+        el('span', { class: 'agent-meta' }, node.sessionId + (node.apiCalls > 0 ? ' · ' + node.apiCalls + ' ' + t('table.calls') : '')),
+        el('span', { class: 'agent-track' }, el('span', { class: 'agent-fill', style: 'width:' + (cost / maxCost * 100).toFixed(1) + '%' })),
+        el('span', { class: 'agent-value' }, fmt.cost(node.cost) + ' · ' + fmt.tokens(node.totalTokens)),
+      ])
+    }))
+    const totalCost = roots.reduce((sum, root) => sum + costAmountOf(root.cost), 0)
+    const currency = roots.find(root => root.cost[0])?.cost[0]?.currency
+    const parts = roots.map((root, i) => ({ label: root.title ?? root.cwd ?? root.sessionId, value: costAmountOf(root.cost), color: PALETTE[i % PALETTE.length] }))
+    const donut = chart(donutChart(parts, { centerText: currency === undefined ? fmt.tokens(totalCost) : fmt.money(totalCost, currency) }))
+    const legendRows = el('div', { class: 'donut-legend' }, parts.map(part => el('div', { class: 'metric-bar' }, [
+      el('span', { class: 'legend-dot', style: 'background:' + part.color }),
+      el('span', { class: 'm-label', style: 'text-align:left;flex:1;width:auto', title: part.label }, part.label),
+      el('span', { class: 'm-value' }, currency === undefined ? fmt.tokens(part.value) : fmt.money(part.value, currency)),
+    ])))
+    return [
+      el('div', { class: 'grid-2' }, [
+        panel(t('agents.title'), [tree]),
+        panel(t('agents.byRoot'), [el('div', { class: 'donut-wrap' }, [donut, legendRows])]),
+      ]),
+    ]
+  }
+
+  function insightMessage(insight) {
+    const v = insight.values
+    const money = value => fmt.money(Number(value), 'USD')
+    switch (insight.kind) {
+      case 'reasoning-effort':
+        return t('insight.reasoning-effort', {
+          maxCost: money(v.maxCost),
+          highCost: money(v.highCost),
+          successDelta: fmt.pct(Number(v.successDelta)),
+        })
+      case 'cache-low':
+        return t('insight.cache-low', { hitRate: fmt.pct(Number(v.hitRate)) })
+      case 'tool-concentration':
+        return t('insight.tool-concentration', { tool: String(v.tool), share: (Number(v.share) * 100).toFixed(0) })
+      case 'unpriced':
+        return t('insight.unpriced', { count: String(v.count) })
+      case 'budget-monthly':
+        return t('insight.budget-monthly', {
+          spent: money(v.spent),
+          limit: money(v.limit),
+          ratio: (Number(v.ratio) * 100).toFixed(0),
+        })
+      case 'subagent-share':
+        return t('insight.subagent-share', { share: (Number(v.share) * 100).toFixed(0) })
+      case 'context-growth':
+        return t('insight.context-growth', {
+          session: String(v.session),
+          tokens: fmt.tokens(Number(v.tokens)),
+          calls: String(v.calls),
+        })
+    }
+    return ''
+  }
+
+  async function renderInsights() {
+    const rows = await api.insights(state.hours)
+    if (rows.length === 0) {
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('insights.none')))]
+    }
+    return [
+      panel(t('insights.title'), rows.map(insight =>
+        el('div', { class: 'insight insight-' + insight.severity }, [
+          el('span', { class: 'insight-tag' }, insight.severity),
+          el('span', { class: 'insight-text' }, insightMessage(insight)),
+        ]))),
+    ]
+  }
+
   function sessionCostList(sessions) {
     if (sessions.length === 0) return el('div', { class: 'dim' }, t('state.emptySessions'))
     const maxCost = Math.max(1, ...sessions.map(s => (s.cost[0] && s.cost[0].amount) || 0))
@@ -1039,6 +1161,8 @@
       case 'models': return renderModels()
       case 'cost': return renderCost()
       case 'reasoning': return renderReasoning()
+      case 'agents': return renderAgents()
+      case 'insights': return renderInsights()
       case 'pricing': return renderPricing()
       default: return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.unknownPage') + ' ' + route.path))]
     }

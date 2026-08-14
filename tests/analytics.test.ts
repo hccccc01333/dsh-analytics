@@ -147,6 +147,45 @@ test('session turns carry duration and success from turn records', async () => {
   }
 })
 
+test('agents builds the parent/child cost tree', async () => {
+  const store = new AnalyticsStore(':memory:')
+  try {
+    store.upsertSession({ sessionId: 'main', createdAt: T0, title: 'main agent' })
+    store.upsertSession({ sessionId: 'sub-search', createdAt: T0 + 1000, parentSession: 'main' })
+    store.upsertSession({ sessionId: 'sub-review', createdAt: T0 + 2000, parentSession: 'main' })
+    store.upsertRequest(record({ sessionId: 'main', seq: 1, time: T0, inputTokens: 1000, outputTokens: 500 }))
+    store.upsertRequest(record({ sessionId: 'sub-search', seq: 2, time: T0 + 1000, model: 'deepseek-v4-flash', inputTokens: 200, outputTokens: 100 }))
+    store.upsertRequest(record({ sessionId: 'sub-review', seq: 3, time: T0 + 2000, inputTokens: 400, outputTokens: 200 }))
+    const ctx = await mount(store)
+    const roots = await ctx.analytics.agents({ start: T0 - 1, end: T0 + 5000 })
+    assert.equal(roots.length, 1)
+    assert.equal(roots[0]?.sessionId, 'main')
+    assert.equal(roots[0]?.children.length, 2)
+    assert.equal(roots[0]?.children[0]?.sessionId, 'sub-review')
+  } finally {
+    store.close()
+  }
+})
+
+test('insights emits cache-low and reasoning-effort rules', async () => {
+  const store = new AnalyticsStore(':memory:')
+  try {
+    store.upsertSession({ sessionId: 'session-1', createdAt: T0 })
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 1, turn: 1, reasoningEffort: 'high', time: T0, inputTokens: 1000, outputTokens: 500, reasoningTokens: 100 }))
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 2, turn: 2, reasoningEffort: 'max', time: T0 + 60_000, inputTokens: 2000, outputTokens: 600, reasoningTokens: 200 }))
+    store.upsertTurnStart({ sessionId: 'session-1', turn: 1, startTime: T0 })
+    store.upsertTurnEnd({ sessionId: 'session-1', turn: 1, endTime: T0 + 10_000, reason: 'completed' })
+    store.upsertTurnStart({ sessionId: 'session-1', turn: 2, startTime: T0 + 60_000 })
+    store.upsertTurnEnd({ sessionId: 'session-1', turn: 2, endTime: T0 + 120_000, reason: 'completed' })
+    const ctx = await mount(store)
+    const insights = await ctx.analytics.insights({ start: T0 - 1, end: T0 + 200_000 })
+    assert.ok(insights.some(insight => insight.kind === 'cache-low'))
+    assert.ok(insights.some(insight => insight.kind === 'reasoning-effort'))
+  } finally {
+    store.close()
+  }
+})
+
 test('budget reports daily and monthly spend with projection', async () => {
   const store = new AnalyticsStore(':memory:')
   try {

@@ -124,7 +124,7 @@ The model can ask for the same numbers:
 ```text
 analytics_query(query="overview", range_hours=24)
 analytics_query(query="session", session_id="session-1")
-analytics_query(query="models" | "sessions" | "tools" | "pricing" | "budget", range_hours=24)
+analytics_query(query="models" | "sessions" | "tools" | "reasoning" | "agents" | "insights" | "pricing" | "budget", range_hours=24)
 ```
 
 `range_hours` bounds the window ending now (`0` = all time, default 24).
@@ -150,6 +150,10 @@ package (`web/`):
   cumulative context chart, per-turn cost bars, tools, cache
 - **Reasoning** — low/high/max efficiency: calls, success rate, avg duration,
   cost, and cost per success
+- **Agents** — parent/child subagent cost tree with per-node cost bars and a
+  top-level cost donut (click any node to drill down)
+- **Insights** — rule-generated optimization suggestions (reasoning effort,
+  cache, tool concentration, budget, subagent share, context growth)
 - **Token Flow / Models / Cost / Pricing** — per-bucket trend, per-model
   aggregates, per-tool step attribution, latest-rate price comparison, and the pricing table
 
