@@ -331,7 +331,11 @@ function SessionTable({ sessions, t, onSession }: {
       <tbody>
         {sessions.map(session => (
           <tr key={session.sessionId} className={css.rowLink} onClick={() => onSession(session.sessionId)}>
-            <td>{session.title ?? session.cwd ?? session.sessionId}</td>
+            <td>
+              <span className={css.titleCell} title={session.title ?? session.cwd ?? session.sessionId}>
+                {session.title ?? session.cwd ?? session.sessionId}
+              </span>
+            </td>
             <td className={css.right}>{session.apiCalls}</td>
             <td className={css.right}>{fmtTokens(session.totalTokens)}</td>
             <td className={css.right}>{fmtCost(session.cost)}</td>

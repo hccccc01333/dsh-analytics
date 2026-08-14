@@ -182,6 +182,14 @@
 .rowLink:hover td {
   background: var(--dsw-alias-interactive-bg-hover, #1b222c);
 }
+.titleCell {
+  display: inline-block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 .badge {
   display: inline-block;
   padding: 1px 8px;

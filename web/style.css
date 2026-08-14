@@ -92,10 +92,12 @@ body { display: flex; flex-direction: column; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
 
 .metric-bar { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
-.metric-bar .m-label { width: 130px; color: var(--text-dim); font-size: 12px; flex: none; text-align: right; }
+.metric-bar .m-label { width: 130px; color: var(--text-dim); font-size: 12px; flex: none; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metric-bar .m-track { flex: 1; height: 10px; background: var(--bg-hover); border-radius: 5px; overflow: hidden; }
 .metric-bar .m-fill { height: 100%; border-radius: 5px; background: var(--accent); }
-.metric-bar .m-value { width: 64px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text); flex: none; }
+.metric-bar .m-value { min-width: 64px; max-width: 280px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text); flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.title-cell { display: block; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }

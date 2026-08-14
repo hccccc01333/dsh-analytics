@@ -183,6 +183,11 @@ pnpm build
 pnpm doctor
 ```
 
+Visual QA: run `pnpm preview` in one terminal, then
+`node scripts/visual-qa.mjs` — it drives headless Edge over the dashboard and
+reports element overlaps, SVG chart-label collisions, text overflow, and the
+font-size scale.
+
 ## Roadmap
 
 - Analytics entry inside the harness client shell (left-nav integration; the

@@ -18,6 +18,7 @@ const PORT = Number(process.env.PORT ?? 4173)
 const NOW = Date.now()
 
 const store = new AnalyticsStore(':memory:')
+store.seedPricing(DEFAULT_PRICING, false)
 
 function seedRequest(partial) {
   store.upsertRequest({

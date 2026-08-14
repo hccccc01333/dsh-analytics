@@ -157,7 +157,15 @@
       grid.push('<text x="' + (pad.left - 8) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end" font-size="11" fill="#5d6b7d">' + fmt.tokens(v) + '</text>')
     }
     const labels = series[0] && series[0].labels
-      ? series[0].labels.map((label, i) => '<text x="' + x(i).toFixed(1) + '" y="' + (height - 6) + '" text-anchor="middle" font-size="11" fill="#5d6b7d">' + label + '</text>')
+      ? (() => {
+        // Thin x labels to ~64px minimum spacing so long ranges never collide.
+        const count = series[0].labels.length
+        const step = Math.max(1, Math.ceil(count / Math.max(1, Math.floor(innerW / 64))))
+        return series[0].labels.map((label, i) => {
+          if (i % step !== 0 && i !== count - 1) return ''
+          return '<text x="' + x(i).toFixed(1) + '" y="' + (height - 6) + '" text-anchor="middle" font-size="11" fill="#5d6b7d">' + label + '</text>'
+        })
+      })()
       : ''
     const paths = series.map((s, i) =>
       '<path d="' + area(s) + '" fill="' + s.color + '" opacity="0.12"/>'
@@ -328,8 +336,8 @@
     const rows = sessions.map(session => ({
       session,
       cells: [
+        el('span', { class: 'title-cell', title: session.title || session.cwd || session.sessionId }, session.title || session.cwd || session.sessionId),
         session.sessionId,
-        session.title || session.cwd || '—',
         fmt.time(session.createdAt),
         rightCell(fmt.number(session.apiCalls)),
         rightCell(fmt.tokens(session.totalTokens)),
@@ -337,7 +345,7 @@
       ],
     }))
     return [panel('Sessions', table(
-      [{ label: 'Session' }, { label: 'Title / cwd' }, { label: 'Created' }, { label: 'Calls', align: 'right' }, { label: 'Tokens', align: 'right' }, { label: 'Cost', align: 'right' }],
+      [{ label: 'Title / cwd' }, { label: 'Session' }, { label: 'Created' }, { label: 'Calls', align: 'right' }, { label: 'Tokens', align: 'right' }, { label: 'Cost', align: 'right' }],
       rows.map(row => row),
       { onRowClick: row => navigate('#/session/' + encodeURIComponent(row.session.sessionId)) },
     ))]
@@ -532,8 +540,8 @@
     const rows = sessions.map(session => ({
       session,
       cells: [
+        el('span', { class: 'title-cell', title: session.title || session.cwd || session.sessionId }, session.title || session.cwd || session.sessionId),
         session.sessionId,
-        session.title || session.cwd || '—',
         fmt.time(session.createdAt),
         rightCell(fmt.number(session.apiCalls)),
         rightCell(fmt.tokens(session.totalTokens)),
@@ -541,7 +549,7 @@
       ],
     }))
     return table(
-      [{ label: 'Session' }, { label: 'Title / cwd' }, { label: 'Created' }, { label: 'Calls', align: 'right' }, { label: 'Tokens', align: 'right' }, { label: 'Cost', align: 'right' }],
+      [{ label: 'Title / cwd' }, { label: 'Session' }, { label: 'Created' }, { label: 'Calls', align: 'right' }, { label: 'Tokens', align: 'right' }, { label: 'Cost', align: 'right' }],
       rows,
       { onRowClick: row => navigate('#/session/' + encodeURIComponent(row.session.sessionId)) },
     )
