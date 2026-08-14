@@ -58,6 +58,22 @@ const MEASURE = `(() => {
   }
   const html = [...document.querySelectorAll('body *')].filter(el => !el.closest('svg') && visible(el))
   const report = { overlaps: [], svgLabelOverlaps: [], overflows: [], fonts: {}, viewport: { w: innerWidth, h: innerHeight, sw: document.documentElement.scrollWidth, sh: document.documentElement.scrollHeight } }
+  const foot = document.getElementById('foot')
+  const mainEl = document.getElementById('main')
+  if (foot !== null) {
+    const fr = foot.getBoundingClientRect()
+    report.footer = { top: Math.round(fr.top), bottom: Math.round(fr.bottom), left: Math.round(fr.left), right: Math.round(fr.right) }
+    report.footerOverlaps = html
+      .filter(el => el !== foot && !foot.contains(el) && !el.contains(foot))
+      .map(el => ({ el, rect: clipRect(el) }))
+      .filter(({ rect }) => rect !== null && rect.bottom > fr.top + 1 && rect.top < fr.bottom - 1 && rect.right > fr.left + 1 && rect.left < fr.right - 1)
+      .slice(0, 10)
+      .map(({ el, rect }) => ({ el: label(el), top: Math.round(rect.top), bottom: Math.round(rect.bottom) }))
+  }
+  if (mainEl !== null) {
+    const mr = mainEl.getBoundingClientRect()
+    report.main = { top: Math.round(mr.top), bottom: Math.round(mr.bottom), scrollH: mainEl.scrollHeight, clientH: mainEl.clientHeight, minHeight: getComputedStyle(mainEl).minHeight, overflowY: getComputedStyle(mainEl).overflowY }
+  }
   const label = (el) => {
     const text = (el.textContent ?? '').trim().replace(/\\s+/g, ' ').slice(0, 30)
     return el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.split(' ').slice(0, 2).join('.') : '') + (text ? ':' + text : '')

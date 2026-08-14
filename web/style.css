@@ -130,8 +130,6 @@ tr.row-link:hover td { background: var(--bg-hover); }
 .kpi-trend { color: var(--green); font-size: 12px; }
 .kpi-trend.down { color: var(--red); }
 
-.foot { flex: none; padding: 8px 20px; color: var(--text-faint); font-size: 12px; border-top: 1px solid var(--border); }
-
 @media (max-width: 720px) {
   .topbar { flex-wrap: wrap; gap: 10px; }
   .tabs { order: 3; width: 100%; }

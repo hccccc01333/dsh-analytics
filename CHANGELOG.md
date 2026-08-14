@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 — 2026-08-14
+
+- Remove the bottom-left footer line from the dashboard (it read as clutter/overlap in the corner).
+- Charts: wider left gutter and ~80px minimum x-label spacing; verified clean at 1500 / 1024 / 720 / 640 in both languages.
+
 ## 0.1.2 — 2026-08-14
 
 - i18n: the standalone dashboard now has an EN/中文 toggle (persisted, `?lang=` param), with every label translated.

@@ -138,7 +138,7 @@
   function lineChart(series, opts) {
     const width = 880
     const height = opts.height || 240
-    const pad = { top: 12, right: 12, bottom: 24, left: 54 }
+    const pad = { top: 12, right: 12, bottom: 24, left: 64 }
     const innerW = width - pad.left - pad.right
     const innerH = height - pad.top - pad.bottom
     let max = 1
@@ -159,9 +159,9 @@
     const labels = series[0] && series[0].labels
       ? (() => {
         // Evenly spaced x labels including both ends: pick `shown` indices at
-        // ~70px minimum spacing so no pair (especially the last two) crowds.
+        // ~80px minimum spacing so no pair (especially the last two) crowds.
         const count = series[0].labels.length
-        const shown = Math.max(2, Math.min(count, Math.floor(innerW / 70)))
+        const shown = Math.max(2, Math.min(count, Math.floor(innerW / 80)))
         const selected = new Set()
         for (let k = 0; k < shown; k++) {
           selected.add(Math.round((k / (shown - 1)) * (count - 1)))
@@ -246,7 +246,6 @@
       'state.unknownPage': 'Unknown page:',
       'back.sessions': '← Sessions',
       'range.label': 'Range', 'range.refresh': 'Refresh',
-      'footer': 'dsh-analytics · local SQLite ledger · prices are request-time rows, never rewritten',
     },
     zh: {
       'tabs.overview': '概览', 'tabs.sessions': '会话', 'tabs.flow': 'Token 流',
@@ -283,7 +282,6 @@
       'state.unknownPage': '未知页面：',
       'back.sessions': '← 会话列表',
       'range.label': '范围', 'range.refresh': '刷新',
-      'footer': 'dsh-analytics · 本地 SQLite 账本 · 价格按请求时点生效，永不改写历史',
     },
   }
 
@@ -302,7 +300,6 @@
     document.getElementById('lang').textContent = locale === 'en' ? '中' : 'EN'
     document.getElementById('lang').title = locale === 'en' ? 'Switch to 中文' : 'Switch to English'
     document.getElementById('loading').textContent = t('state.loading')
-    document.getElementById('foot').textContent = t('footer')
   }
 
   // ---------- state ----------
