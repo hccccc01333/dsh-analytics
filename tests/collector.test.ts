@@ -60,6 +60,24 @@ function toolResultEvent(seq: number, time: number, turn: number, step: number, 
   } as unknown as SessionEvent<'tool/result'>
 }
 
+function turnStartEvent(seq: number, time: number, turn: number): SessionEvent<'turn/start'> {
+  return {
+    type: 'turn/start',
+    seq,
+    time,
+    data: { turn },
+  } as unknown as SessionEvent<'turn/start'>
+}
+
+function turnEndEvent(seq: number, time: number, turn: number, reason: string): SessionEvent<'turn/end'> {
+  return {
+    type: 'turn/end',
+    seq,
+    time,
+    data: { turn, reason: { kind: reason } },
+  } as unknown as SessionEvent<'turn/end'>
+}
+
 test('collector folds usage, identity, and tool results into the store', () => {
   const dir = mkdtempSync(join(tmpdir(), 'dsh-analytics-'))
   const store = new AnalyticsStore(join(dir, 'test.sqlite'))
@@ -68,11 +86,13 @@ test('collector folds usage, identity, and tool results into the store', () => {
     const t0 = Date.parse('2026-08-01T10:00:00Z')
     const events: SessionEvent[] = [
       headerEvent(0, t0, { provider: 'deepseek', model: 'deepseek-v4-pro', reasoningEffort: 'high' }),
+      turnStartEvent(1, t0, 1),
       assistantEvent(2, t0 + 1000, 1, 1, { inputTokens: 100, outputTokens: 50, cacheReadTokens: 200, reasoningTokens: 10 }),
       toolCallEvent(3, t0 + 2000, 1, 1, 'call-1', 'web_search'),
       toolResultEvent(4, t0 + 3000, 1, 1, 'call-1', true),
       headerEvent(5, t0 + 4000, { provider: 'deepseek', model: 'deepseek-v4-flash' }),
       assistantEvent(6, t0 + 5000, 2, 1, { inputTokens: 10, outputTokens: 5 }),
+      turnEndEvent(7, t0 + 9000, 1, 'completed'),
     ]
 
     collector.backfill('session-1', t0, events)
@@ -94,7 +114,14 @@ test('collector folds usage, identity, and tool results into the store', () => {
     assert.equal(calls[0]?.callId, 'call-1')
     assert.equal(calls[0]?.resultSeq, 4)
     assert.equal(calls[0]?.isError, true)
-    assert.equal(store.lastSeq('session-1'), 6)
+    const turns = store.turnsForSession('session-1')
+    assert.equal(turns.length, 1)
+    assert.equal(turns[0]?.turn, 1)
+    assert.equal(turns[0]?.startTime, t0)
+    assert.equal(turns[0]?.endTime, t0 + 9000)
+    assert.equal(turns[0]?.durationMs, 9000)
+    assert.equal(turns[0]?.reason, 'completed')
+    assert.equal(store.lastSeq('session-1'), 7)
   } finally {
     store.close()
     rmSync(dir, { recursive: true, force: true })

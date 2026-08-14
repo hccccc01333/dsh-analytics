@@ -110,6 +110,10 @@ test('JSON API routes answer from the analytics service', async () => {
     assert.equal(detail.status, 200)
     assert.equal((JSON.parse(detail.body) as { sessionId: string }).sessionId, 'session-1')
 
+    const reasoning = await request(server.routes.get('/api/analytics/reasoning')!, 'GET', '/api/analytics/reasoning')
+    assert.equal(reasoning.status, 200)
+    assert.ok(Array.isArray(JSON.parse(reasoning.body)))
+
     const missingId = await request(server.routes.get('/api/analytics/session')!, 'GET', '/api/analytics/session/')
     assert.equal(missingId.status, 400)
   } finally {

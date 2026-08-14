@@ -98,6 +98,55 @@ test('session drill-down returns requests, turns, and tools', async () => {
   }
 })
 
+test('reasoning aggregates effort efficiency with turn stats', async () => {
+  const store = new AnalyticsStore(':memory:')
+  try {
+    store.upsertSession({ sessionId: 'session-1', createdAt: T0 })
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 1, turn: 1, reasoningEffort: 'high', time: T0, inputTokens: 1000, outputTokens: 500, reasoningTokens: 200 }))
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 2, turn: 2, reasoningEffort: 'max', time: T0 + 60_000, inputTokens: 2000, outputTokens: 600, reasoningTokens: 400 }))
+    store.upsertTurnStart({ sessionId: 'session-1', turn: 1, startTime: T0 })
+    store.upsertTurnEnd({ sessionId: 'session-1', turn: 1, endTime: T0 + 20_000, reason: 'completed' })
+    store.upsertTurnStart({ sessionId: 'session-1', turn: 2, startTime: T0 + 60_000 })
+    store.upsertTurnEnd({ sessionId: 'session-1', turn: 2, endTime: T0 + 90_000, reason: 'error' })
+
+    const ctx = await mount(store)
+    const rows = await ctx.analytics.reasoning({ start: T0 - 1, end: T0 + 200_000 })
+    assert.equal(rows.length, 2)
+    const high = rows.find(row => row.reasoningEffort === 'high')
+    const max = rows.find(row => row.reasoningEffort === 'max')
+    assert.ok(high !== undefined)
+    assert.equal(high.turns, 1)
+    assert.equal(high.completedTurns, 1)
+    assert.equal(high.successRate, 1)
+    assert.equal(high.avgDurationMs, 20_000)
+    assert.ok(high.costPerSuccess.length > 0)
+    assert.ok(max !== undefined)
+    assert.equal(max.turns, 1)
+    assert.equal(max.completedTurns, 0)
+    assert.equal(max.successRate, 0)
+    assert.equal(max.avgDurationMs, 30_000)
+    assert.equal(max.costPerSuccess.length, 0)
+  } finally {
+    store.close()
+  }
+})
+
+test('session turns carry duration and success from turn records', async () => {
+  const store = new AnalyticsStore(':memory:')
+  try {
+    store.upsertSession({ sessionId: 'session-1', createdAt: T0 })
+    store.upsertRequest(record({ sessionId: 'session-1', seq: 1, turn: 1, time: T0, inputTokens: 100, outputTokens: 50 }))
+    store.upsertTurnStart({ sessionId: 'session-1', turn: 1, startTime: T0 })
+    store.upsertTurnEnd({ sessionId: 'session-1', turn: 1, endTime: T0 + 5000, reason: 'completed' })
+    const ctx = await mount(store)
+    const detail = await ctx.analytics.session('session-1')
+    assert.equal(detail.turns[0]?.durationMs, 5000)
+    assert.equal(detail.turns[0]?.success, true)
+  } finally {
+    store.close()
+  }
+})
+
 test('budget reports daily and monthly spend with projection', async () => {
   const store = new AnalyticsStore(':memory:')
   try {

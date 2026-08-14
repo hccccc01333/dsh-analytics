@@ -81,6 +81,21 @@ export class UsageCollector {
 
   private foldEvent(sessionId: string, event: SessionEvent): void {
     switch (event.type) {
+      case 'turn/start':
+        this.store.upsertTurnStart({
+          sessionId,
+          turn: event.data.turn,
+          startTime: event.time,
+        })
+        break
+      case 'turn/end':
+        this.store.upsertTurnEnd({
+          sessionId,
+          turn: event.data.turn,
+          endTime: event.time,
+          reason: event.data.reason.kind,
+        })
+        break
       case 'request/header':
         this.headers.set(sessionId, event.data.header)
         break

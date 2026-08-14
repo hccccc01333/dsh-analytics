@@ -79,6 +79,20 @@ export interface ToolCallRecord {
   isError?: boolean
 }
 
+/** One agent turn with its wall-clock span and outcome. */
+export interface TurnRecord {
+  sessionId: string
+  turn: number
+  /** `turn/start` event time, Unix epoch milliseconds. */
+  startTime: number
+  /** `turn/end` event time, absent while the turn is open. */
+  endTime?: number
+  /** `endTime - startTime`, absent until the turn closes. */
+  durationMs?: number
+  /** `turn/end` reason kind (`completed`, `error`, `aborted`, ...). */
+  reason?: string
+}
+
 /** Plugin configuration; see the README for the full reference. */
 export interface AnalyticsConfig {
   /** Filesystem path of the analytics SQLite database file. */

@@ -14,15 +14,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { AnalyticsHeaderAction } from './AnalyticsHeaderAction.tsx'
 import { AnalyticsFooterAction } from './AnalyticsFooterAction.tsx'
+import { TurnCostTail, selectTurnCost } from './TurnCostTail.tsx'
 import { en, zh, type AnalyticsKey } from './locales.ts'
 
 export { AnalyticsHeaderAction } from './AnalyticsHeaderAction.tsx'
 export { AnalyticsFooterAction } from './AnalyticsFooterAction.tsx'
+export { TurnCostTail, selectTurnCost } from './TurnCostTail.tsx'
 export { AnalyticsPanel } from './AnalyticsPanel.tsx'
 export { AnalyticsApp } from './AnalyticsApp.tsx'
 export { NS, en, zh } from './locales.ts'
 export type { AnalyticsKey } from './locales.ts'
-export { fmtCost, fmtMoney, fmtPct, fmtTime, fmtTokens } from './format.ts'
+export { fmtCost, fmtDuration, fmtMoney, fmtPct, fmtTime, fmtTokens } from './format.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -67,5 +69,15 @@ export function apply(ctx: ClientContext): void {
       order: 10,
       locale: 'analytics',
     }, AnalyticsFooterAction),
+  )
+
+  ctx.slots.inject(
+    'conversation.chat.turnTail',
+    () => ctx.slots.register({
+      name: 'conversation.chat.turnTail',
+      locale: 'analytics',
+      priority: 10,
+      select: selectTurnCost,
+    }, TurnCostTail),
   )
 }

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 — 2026-08-14
+
+- Turn-level data: `turn/start` / `turn/end` are folded into a turns ledger (duration + outcome); session drill-down turns now show duration and success.
+- Reasoning efficiency: new `ctx.analytics.reasoning()`, `/api/analytics/reasoning` route, `analytics_query(query="reasoning")`, and a Reasoning dashboard page (per-effort calls, success rate, avg duration, cost, cost per success with charts).
+- Per-turn cost in the harness chat: the client bundle registers a `conversation.chat.turnTail` entry rendering "tokens · cost · duration" under each closed turn's final message.
+
 ## 0.1.6 — 2026-08-14
 
 - Chart legends move into the chart's top-right corner as a translucent overlay (Token Trend, Token Flow, Cost Trend, Cumulative Context, and Pricing comparison charts).

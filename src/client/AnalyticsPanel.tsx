@@ -27,6 +27,7 @@ export interface SessionAnalyticsPayload {
   turns: {
     turn: number
     apiCalls: number
+    totalTokens: number
     inputTokens: number
     cacheReadTokens: number
     outputTokens: number

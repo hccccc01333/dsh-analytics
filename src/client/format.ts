@@ -42,3 +42,11 @@ export function fmtPct(ratio: number): string {
 export function fmtTime(ms: number): string {
   return new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
+
+/** Compact duration: `47s`, `3m42s`. */
+export function fmtDuration(ms: number): string {
+  const seconds = Math.max(0, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  return `${minutes}m${seconds % 60}s`
+}

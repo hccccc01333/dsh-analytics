@@ -11,7 +11,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 
-const QUERIES = ['overview', 'session', 'sessions', 'models', 'tools', 'pricing', 'budget'] as const
+const QUERIES = ['overview', 'session', 'sessions', 'models', 'tools', 'reasoning', 'pricing', 'budget'] as const
 
 /** Tool arguments after registry validation. */
 interface AnalyticsQueryArgs {
@@ -80,6 +80,9 @@ export function registerAnalyticsTool(ctx: Context): void {
           break
         case 'tools':
           result = await ctx.analytics.tools(range)
+          break
+        case 'reasoning':
+          result = await ctx.analytics.reasoning(range)
           break
         case 'pricing':
           result = await ctx.analytics.pricing()

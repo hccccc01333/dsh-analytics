@@ -145,11 +145,13 @@ The same routes power a self-contained dashboard served by the plugin at
 package (`web/`):
 
 - **Overview** — KPI cards (cost, tokens, cache hit rate, reasoning share),
-  token/cost trend, composition, cost by model, sessions, budget
-- **Sessions** — list with drill-down: turn waterfall, cumulative context
-  chart, tools, cache
+  token/cost trend, composition donut, cache hit-rate trend, cost by model, sessions, budget
+- **Sessions** — list with drill-down: turn waterfall with duration/outcome,
+  cumulative context chart, per-turn cost bars, tools, cache
+- **Reasoning** — low/high/max efficiency: calls, success rate, avg duration,
+  cost, and cost per success
 - **Token Flow / Models / Cost / Pricing** — per-bucket trend, per-model
-  aggregates, per-tool step attribution, and the pricing table in force
+  aggregates, per-tool step attribution, latest-rate price comparison, and the pricing table
 
 The range selector (6h/24h/7d/30d/all) applies to every page; the shell-nav
 integration inside the harness client is a follow-up (the harness client has
@@ -160,7 +162,7 @@ no free plugin page slot today). The top bar also has an **EN / 中文** toggle
 
 The package also ships a browser client bundle (`dsh.client` →
 `exports["./client"]`, built to the harness module-loader contract). In a web
-profile it registers two entries:
+profile it registers three entries:
 
 - a **Token Analytics** action beside Settings at the sidebar foot, opening a
   full-screen in-app panel with the same six pages as `/analytics`
@@ -168,7 +170,9 @@ profile it registers two entries:
   selector and refresh);
 - a per-session **Analytics** action in the conversation header, opening the
   task-cost overlay (cost, tokens, cache hit rate, turn waterfall, tool
-  attribution, and a link to the full dashboard).
+  attribution, and a link to the full dashboard);
+- a per-turn cost line under each closed turn's final chat message
+  ("tokens · cost · duration"), rendered by the `conversation.chat.turnTail` entry.
 
 Both read the same read-only JSON routes, so they need the plugin's host half
 (and its web routes) mounted. No harness client shell change is required:

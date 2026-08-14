@@ -40,6 +40,7 @@ export type AnalyticsKey =
   | 'panel.title'
   | 'panel.dashboard'
   | 'panel.close'
+  | 'tail.unit'
   | 'kpi.cost'
   | 'kpi.tokens'
   | 'kpi.cache'
@@ -95,6 +96,7 @@ export const zh: Record<AnalyticsKey, string> = {
   'panel.title': 'Token 分析',
   'panel.dashboard': '打开完整仪表盘',
   'panel.close': '关闭',
+  'tail.unit': 'Token',
   'kpi.cost': '成本',
   'kpi.tokens': 'Token',
   'kpi.cache': '缓存命中',
@@ -151,6 +153,7 @@ export const en: Record<AnalyticsKey, string> = {
   'panel.title': 'Token Analytics',
   'panel.dashboard': 'Open full dashboard',
   'panel.close': 'Close',
+  'tail.unit': 'tokens',
   'kpi.cost': 'Cost',
   'kpi.tokens': 'Tokens',
   'kpi.cache': 'Cache hit',

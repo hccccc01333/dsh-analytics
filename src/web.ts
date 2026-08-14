@@ -73,6 +73,7 @@ export function registerAnalyticsRoutes(ctx: unknown, analytics: AnalyticsServic
   exact('/api/analytics/sessions', async (search) => analytics.sessions(parseHours(search.get('hours'))))
   exact('/api/analytics/models', async (search) => analytics.models(parseHours(search.get('hours'))))
   exact('/api/analytics/tools', async (search) => analytics.tools(parseHours(search.get('hours'))))
+  exact('/api/analytics/reasoning', async (search) => analytics.reasoning(parseHours(search.get('hours'))))
   exact('/api/analytics/pricing', async () => analytics.pricing())
   exact('/api/analytics/budget', async () => analytics.budget())
 

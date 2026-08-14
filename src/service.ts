@@ -9,6 +9,7 @@ import type {
   AnalyticsOverview,
   AnalyticsRange,
   BudgetSummary,
+  ReasoningSummary,
   ModelSummary,
   SessionAnalytics,
   SessionSummary,
@@ -69,6 +70,13 @@ export abstract class AnalyticsService extends Service {
    * @returns one summary per tool name; cost is step-level attribution.
    */
   abstract tools(request?: AnalyticsRange): Promise<ToolSummary[]>
+
+  /**
+   * Reasoning-effort efficiency over a time range.
+   * @param request - optional time bounds.
+   * @returns per-effort calls, tokens, cost, success rate, duration, and cost per success.
+   */
+  abstract reasoning(request?: AnalyticsRange): Promise<ReasoningSummary[]>
 
   /**
    * The pricing table currently in force for cost computation.

@@ -14,6 +14,7 @@
     session(id) { return get('/api/analytics/session/' + encodeURIComponent(id)) },
     models(hours) { return get('/api/analytics/models' + qs({ hours })) },
     tools(hours) { return get('/api/analytics/tools' + qs({ hours })) },
+    reasoning(hours) { return get('/api/analytics/reasoning' + qs({ hours })) },
     pricing() { return get('/api/analytics/pricing') },
     budget() { return get('/api/analytics/budget') },
   }
@@ -361,7 +362,7 @@
   const I18N = {
     en: {
       'tabs.overview': 'Overview', 'tabs.sessions': 'Sessions', 'tabs.flow': 'Token Flow',
-      'tabs.models': 'Models', 'tabs.cost': 'Cost', 'tabs.pricing': 'Pricing',
+      'tabs.models': 'Models', 'tabs.cost': 'Cost', 'tabs.reasoning': 'Reasoning', 'tabs.pricing': 'Pricing',
       'kpi.cost': 'Total Cost', 'kpi.tokens': 'Total Tokens', 'kpi.cache': 'Cache Hit Rate',
       'kpi.reasoning': 'Reasoning Share', 'kpi.calls': 'API Calls', 'kpi.tools': 'Tool Calls',
       'kpi.unpriced': 'unpriced', 'kpi.sessions': 'sessions', 'kpi.reasoningTokens': 'reasoning tokens',
@@ -379,6 +380,9 @@
       'legend.output': 'Output', 'legend.cost': 'Cost',
       'panel.cacheTrend': 'Cache Hit Rate Trend', 'panel.turnCost': 'Turn Cost',
       'panel.priceCompare': 'Latest peak rates per 1M tokens', 'other': 'Other',
+      'reasoning.duration': 'Avg Duration by Effort', 'reasoning.costPerSuccess': 'Cost per Success',
+      'reasoning.costByEffort': 'Cost by Effort', 'reasoning.table': 'Reasoning Efficiency',
+      'table.duration': 'Duration', 'table.avgDuration': 'Avg duration', 'table.outcome': 'Outcome', 'table.effort': 'Effort',
       'table.titleCwd': 'Title / cwd', 'table.session': 'Session', 'table.created': 'Created',
       'table.calls': 'Calls', 'table.tokens': 'Tokens', 'table.cost': 'Cost', 'table.model': 'Model',
       'table.provider': 'Provider', 'table.input': 'Input', 'table.cache': 'Cache',
@@ -399,7 +403,7 @@
     },
     zh: {
       'tabs.overview': '概览', 'tabs.sessions': '会话', 'tabs.flow': 'Token 流',
-      'tabs.models': '模型', 'tabs.cost': '成本', 'tabs.pricing': '定价',
+      'tabs.models': '模型', 'tabs.cost': '成本', 'tabs.reasoning': '推理效率', 'tabs.pricing': '定价',
       'kpi.cost': '总成本', 'kpi.tokens': '总 Token', 'kpi.cache': '缓存命中率',
       'kpi.reasoning': '推理占比', 'kpi.calls': 'API 调用', 'kpi.tools': '工具调用',
       'kpi.unpriced': '未计价', 'kpi.sessions': '个会话', 'kpi.reasoningTokens': '推理 Token',
@@ -417,6 +421,9 @@
       'legend.output': '输出', 'legend.cost': '成本',
       'panel.cacheTrend': '缓存命中率趋势', 'panel.turnCost': 'Turn 成本',
       'panel.priceCompare': '最新价格：每百万 Token（peak）', 'other': '其他',
+      'reasoning.duration': '各档平均耗时', 'reasoning.costPerSuccess': '每次成功成本',
+      'reasoning.costByEffort': '各档成本', 'reasoning.table': '推理效率明细',
+      'table.duration': '耗时', 'table.avgDuration': '平均耗时', 'table.outcome': '结果', 'table.effort': '档位',
       'table.titleCwd': '标题 / 工作目录', 'table.session': '会话', 'table.created': '创建时间',
       'table.calls': '调用', 'table.tokens': 'Token', 'table.cost': '成本', 'table.model': '模型',
       'table.provider': '提供方', 'table.input': '输入', 'table.cache': '缓存',
@@ -466,6 +473,7 @@
     ['flow', 'tabs.flow'],
     ['models', 'tabs.models'],
     ['cost', 'tabs.cost'],
+    ['reasoning', 'tabs.reasoning'],
     ['pricing', 'tabs.pricing'],
   ]
 
@@ -677,10 +685,12 @@
         rightCell(fmt.tokens(turn.outputTokens)),
         rightCell(fmt.tokens(turn.reasoningTokens)),
         rightCell(fmt.cost(turn.cost)),
+        rightCell(turn.durationMs === undefined ? '—' : fmt.duration(turn.durationMs)),
+        turn.success === undefined ? '—' : (turn.success ? '✓' : '✗'),
       ],
     }))
     main.push(panel(t('panel.turnWaterfall'), table(
-      [{ label: t('table.turn') }, { label: t('table.calls'), align: 'right' }, { label: t('table.input'), align: 'right' }, { label: t('table.cache'), align: 'right' }, { label: t('table.output'), align: 'right' }, { label: t('table.reasoning'), align: 'right' }, { label: t('table.cost'), align: 'right' }],
+      [{ label: t('table.turn') }, { label: t('table.calls'), align: 'right' }, { label: t('table.input'), align: 'right' }, { label: t('table.cache'), align: 'right' }, { label: t('table.output'), align: 'right' }, { label: t('table.reasoning'), align: 'right' }, { label: t('table.cost'), align: 'right' }, { label: t('table.duration'), align: 'right' }, { label: t('table.outcome') }],
       turnRows,
     )))
 
@@ -819,6 +829,64 @@
       )))
     }
     return main
+  }
+
+  function costAmountOf(list) {
+    return (list[0] && list[0].amount) || 0
+  }
+
+  async function renderReasoning() {
+    const rows = await api.reasoning(state.hours)
+    if (rows.length === 0) {
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyRequests')))]
+    }
+    const currency = rows.find(row => row.cost[0])?.cost[0]?.currency
+    const tableRows = rows.map(row => ({
+      cells: [
+        el('span', { class: 'badge ' + (row.reasoningEffort === 'max' ? 'peak' : row.reasoningEffort === 'high' ? 'off-peak' : 'flat') }, row.reasoningEffort),
+        rightCell(fmt.number(row.apiCalls)),
+        rightCell(fmt.number(row.turns)),
+        rightCell(fmt.pct(row.successRate)),
+        rightCell(fmt.duration(row.avgDurationMs)),
+        rightCell(fmt.cost(row.cost)),
+        rightCell(row.costPerSuccess.length > 0 ? fmt.cost(row.costPerSuccess) : '—'),
+      ],
+    }))
+    const durationChart = chart(groupedBars(
+      rows.map(row => ({ label: row.reasoningEffort, values: [row.avgDurationMs] })),
+      [{ label: t('table.avgDuration'), color: PALETTE[4] }],
+      { height: 200, format: v => fmt.duration(v) },
+    ), true)
+    const successCategories = rows.map(row => ({ label: row.reasoningEffort, values: [costAmountOf(row.costPerSuccess)] }))
+    const hasSuccessCost = successCategories.some(category => category.values[0] > 0)
+    const successChart = hasSuccessCost
+      ? chart(groupedBars(
+        successCategories,
+        [{ label: t('reasoning.costPerSuccess'), color: PALETTE[0] }],
+        { height: 200, format: v => currency === undefined ? fmt.tokens(v) : fmt.money(v, currency) },
+      ), true)
+      : el('div', { class: 'dim' }, t('state.emptyRequests'))
+    const totalCost = rows.reduce((sum, row) => sum + costAmountOf(row.cost), 0)
+    const parts = rows.map((row, i) => ({ label: row.reasoningEffort, value: costAmountOf(row.cost), color: PALETTE[i % PALETTE.length] }))
+    const costDonut = chart(donutChart(parts, { centerText: currency === undefined ? fmt.tokens(totalCost) : fmt.money(totalCost, currency) }))
+    const legendRows = el('div', { class: 'donut-legend' }, parts.map(part => el('div', { class: 'metric-bar' }, [
+      el('span', { class: 'legend-dot', style: 'background:' + part.color }),
+      el('span', { class: 'm-label', style: 'text-align:left;flex:1;width:auto' }, part.label),
+      el('span', { class: 'm-value' }, currency === undefined ? fmt.tokens(part.value) : fmt.money(part.value, currency)),
+    ])))
+    return [
+      el('div', { class: 'grid-2' }, [
+        panel(t('reasoning.duration'), [durationChart]),
+        panel(t('reasoning.costPerSuccess'), [successChart]),
+      ]),
+      el('div', { class: 'grid-2' }, [
+        panel(t('reasoning.costByEffort'), [el('div', { class: 'donut-wrap' }, [costDonut, legendRows])]),
+        panel(t('reasoning.table'), table(
+          [{ label: t('table.effort') }, { label: t('table.calls'), align: 'right' }, { label: t('table.turn'), align: 'right' }, { label: t('table.success'), align: 'right' }, { label: t('table.avgDuration'), align: 'right' }, { label: t('table.cost'), align: 'right' }, { label: t('reasoning.costPerSuccess'), align: 'right' }],
+          tableRows,
+        )),
+      ]),
+    ]
   }
 
   function sessionCostList(sessions) {
@@ -970,6 +1038,7 @@
       case 'flow': return renderFlow()
       case 'models': return renderModels()
       case 'cost': return renderCost()
+      case 'reasoning': return renderReasoning()
       case 'pricing': return renderPricing()
       default: return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.unknownPage') + ' ' + route.path))]
     }

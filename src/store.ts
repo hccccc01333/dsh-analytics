@@ -13,7 +13,7 @@
 import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import type { PricingRow, ToolCallRecord, UsageRecord } from './types.ts'
+import type { PricingRow, ToolCallRecord, TurnRecord, UsageRecord } from './types.ts'
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS dsh_analytics_sessions (
@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS dsh_analytics_tool_calls (
   result_seq INTEGER,
   is_error INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (session_id, seq)
+);
+CREATE TABLE IF NOT EXISTS dsh_analytics_turns (
+  session_id TEXT NOT NULL,
+  turn INTEGER NOT NULL,
+  start_time INTEGER NOT NULL,
+  end_time INTEGER,
+  duration_ms INTEGER,
+  reason TEXT,
+  PRIMARY KEY (session_id, turn)
 );
 CREATE TABLE IF NOT EXISTS dsh_analytics_pricing (
   provider TEXT NOT NULL,
@@ -119,6 +128,8 @@ export class AnalyticsStore {
   private readonly upsertRequestStmt
   private readonly upsertToolCallStmt
   private readonly pairToolResultStmt
+  private readonly upsertTurnStartStmt
+  private readonly upsertTurnEndStmt
   private readonly seedPricingStmt
   private readonly replacePricingStmt
   private readonly loadPricingStmt
@@ -127,6 +138,8 @@ export class AnalyticsStore {
   private readonly selectSessionRequestsStmt
   private readonly selectToolCallsStmt
   private readonly selectSessionToolCallsStmt
+  private readonly selectTurnsForSessionStmt
+  private readonly selectTurnsRangeStmt
 
   /**
    * @param path - filesystem path of the database file; missing directories are created.
@@ -179,6 +192,15 @@ export class AnalyticsStore {
       SET result_seq = ?, is_error = ?
       WHERE session_id = ? AND call_id = ?
     `)
+    this.upsertTurnStartStmt = this.db.prepare(`
+      INSERT OR IGNORE INTO dsh_analytics_turns (session_id, turn, start_time)
+      VALUES (?, ?, ?)
+    `)
+    this.upsertTurnEndStmt = this.db.prepare(`
+      UPDATE dsh_analytics_turns
+      SET end_time = ?, duration_ms = ? - start_time, reason = ?
+      WHERE session_id = ? AND turn = ?
+    `)
     this.seedPricingStmt = this.db.prepare(`
       INSERT OR IGNORE INTO dsh_analytics_pricing (
         provider, model, region, price_type, input_type, price_per_million, currency, effective_from, effective_to
@@ -230,6 +252,20 @@ export class AnalyticsStore {
       FROM dsh_analytics_tool_calls
       WHERE session_id = ?
       ORDER BY time, seq
+    `)
+    this.selectTurnsForSessionStmt = this.db.prepare(`
+      SELECT session_id AS sessionId, turn, start_time AS startTime,
+             end_time AS endTime, duration_ms AS durationMs, reason
+      FROM dsh_analytics_turns
+      WHERE session_id = ?
+      ORDER BY turn
+    `)
+    this.selectTurnsRangeStmt = this.db.prepare(`
+      SELECT session_id AS sessionId, turn, start_time AS startTime,
+             end_time AS endTime, duration_ms AS durationMs, reason
+      FROM dsh_analytics_turns
+      WHERE start_time >= ? AND start_time < ?
+      ORDER BY start_time
     `)
   }
 
@@ -286,6 +322,22 @@ export class AnalyticsStore {
 
   pairToolResult(input: { sessionId: string; callId: string; resultSeq: number; isError: boolean }): void {
     this.pairToolResultStmt.run(input.resultSeq, input.isError ? 1 : 0, input.sessionId, input.callId)
+  }
+
+  upsertTurnStart(input: { sessionId: string; turn: number; startTime: number }): void {
+    this.upsertTurnStartStmt.run(input.sessionId, input.turn, input.startTime)
+  }
+
+  upsertTurnEnd(input: { sessionId: string; turn: number; endTime: number; reason: string }): void {
+    this.upsertTurnEndStmt.run(input.endTime, input.endTime, input.reason, input.sessionId, input.turn)
+  }
+
+  turnsForSession(sessionId: string): TurnRecord[] {
+    return this.selectTurnsForSessionStmt.all(sessionId) as unknown as TurnRecord[]
+  }
+
+  turns(range: { start: number; end: number }): TurnRecord[] {
+    return this.selectTurnsRangeStmt.all(range.start, range.end) as unknown as TurnRecord[]
   }
 
   toolCalls(range: { start: number; end: number }): ToolCallRecord[] {

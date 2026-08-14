@@ -115,6 +115,30 @@ export interface TurnSummary {
   reasoningTokens: number
   totalTokens: number
   cost: CostSummary[]
+  /** Wall-clock duration of the turn, absent while open. */
+  durationMs?: number
+  /** Whether the turn ended `completed`. */
+  success?: boolean
+}
+
+/** One reasoning-effort bucket with efficiency signals. */
+export interface ReasoningSummary {
+  reasoningEffort: string
+  apiCalls: number
+  /** Turns whose requests used this effort (turn-level stats). */
+  turns: number
+  completedTurns: number
+  successRate: number
+  inputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  outputTokens: number
+  reasoningTokens: number
+  cost: CostSummary[]
+  /** Mean turn duration in milliseconds. */
+  avgDurationMs: number
+  /** Cost divided by completed turns, per currency. */
+  costPerSuccess: CostSummary[]
 }
 
 /** One tool's call counts and step-attributed usage. */
@@ -460,6 +484,7 @@ export class AnalyticsLocal extends AnalyticsService {
     const calls = store.toolCallsForSession(sessionId)
     const row = store.sessions().find(candidate => candidate.sessionId === sessionId)
     const totals = tokenTotals(costed, calls.length, requests.length === 0 ? 0 : 1)
+    const turnRecords = new Map(store.turnsForSession(sessionId).map(turn => [turn.turn, turn]))
     const turns = new Map<number, TurnSummary>()
     for (const { record, cost } of costed) {
       const entry = turns.get(record.turn) ?? {
@@ -488,6 +513,17 @@ export class AnalyticsLocal extends AnalyticsService {
       turns.set(record.turn, entry)
     }
     const tools = groupTools(calls, costed, this.deps.engine)
+    const turnSummaries = [...turns.values()]
+      .sort((a, b) => a.turn - b.turn)
+      .map(turn => {
+        const record = turnRecords.get(turn.turn)
+        if (record === undefined) return turn
+        return {
+          ...turn,
+          ...(record.durationMs === undefined ? {} : { durationMs: record.durationMs }),
+          ...(record.reason === undefined ? {} : { success: record.reason === 'completed' }),
+        }
+      })
     return {
       sessionId,
       ...(row?.cwd === undefined ? {} : { cwd: row.cwd }),
@@ -499,10 +535,80 @@ export class AnalyticsLocal extends AnalyticsService {
       totalTokens: totals.totalTokens,
       cost: this.preferCurrency(sumCosts(costed.map(costedRequest => costedRequest.cost))),
       requests: requestViews(costed),
-      turns: [...turns.values()].sort((a, b) => a.turn - b.turn),
+      turns: turnSummaries,
       tools,
       cache: cacheSummary(requests, this.deps.engine),
     }
+  }
+
+  async reasoning(request?: AnalyticsRange): Promise<ReasoningSummary[]> {
+    const range = this.resolveRange(request)
+    const store = this.deps.store
+    const records = store.requests(range).filter(record => record.reasoningEffort !== undefined)
+    const costed = costRequests(records, this.deps.engine)
+    const turnEffort = new Map<string, string>()
+    for (const record of records) {
+      const key = `${record.sessionId}/${record.turn}`
+      if (!turnEffort.has(key) && record.reasoningEffort !== undefined) {
+        turnEffort.set(key, record.reasoningEffort)
+      }
+    }
+    const byEffort = new Map<string, ReasoningSummary>()
+    for (const { record, cost } of costed) {
+      const effort = record.reasoningEffort!
+      const entry = byEffort.get(effort) ?? {
+        reasoningEffort: effort,
+        apiCalls: 0,
+        turns: 0,
+        completedTurns: 0,
+        successRate: 0,
+        inputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cost: [] as CostSummary[],
+        avgDurationMs: 0,
+        costPerSuccess: [] as CostSummary[],
+      }
+      entry.apiCalls += 1
+      entry.inputTokens += record.inputTokens
+      entry.cacheReadTokens += record.cacheReadTokens
+      entry.cacheWriteTokens += record.cacheWriteTokens
+      entry.outputTokens += record.outputTokens
+      entry.reasoningTokens += record.reasoningTokens
+      if (cost !== undefined && cost.cost > 0) {
+        const existing = entry.cost.find(summary => summary.currency === cost.currency)
+        if (existing === undefined) entry.cost.push({ currency: cost.currency, amount: cost.cost })
+        else existing.amount += cost.cost
+      }
+      byEffort.set(effort, entry)
+    }
+    const turnStats = new Map<string, { total: number; count: number; completed: number }>()
+    for (const turn of store.turns(range)) {
+      const effort = turnEffort.get(`${turn.sessionId}/${turn.turn}`)
+      if (effort === undefined || turn.durationMs === undefined) continue
+      const bucket = turnStats.get(effort) ?? { total: 0, count: 0, completed: 0 }
+      bucket.total += turn.durationMs
+      bucket.count += 1
+      if (turn.reason === 'completed') bucket.completed += 1
+      turnStats.set(effort, bucket)
+    }
+    const results: ReasoningSummary[] = []
+    for (const entry of byEffort.values()) {
+      const stats = turnStats.get(entry.reasoningEffort)
+      const turnsCount = stats?.count ?? 0
+      const completed = stats?.completed ?? 0
+      results.push({
+        ...entry,
+        turns: turnsCount,
+        completedTurns: completed,
+        successRate: turnsCount === 0 ? 0 : completed / turnsCount,
+        avgDurationMs: turnsCount === 0 ? 0 : Math.round((stats?.total ?? 0) / turnsCount),
+        costPerSuccess: completed === 0 ? [] : entry.cost.map(cost => ({ currency: cost.currency, amount: cost.amount / completed })),
+      })
+    }
+    return results.sort((a, b) => (b.cost[0]?.amount ?? 0) - (a.cost[0]?.amount ?? 0))
   }
 
   async sessions(request?: AnalyticsRange): Promise<SessionSummary[]> {

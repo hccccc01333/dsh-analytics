@@ -190,6 +190,14 @@
   white-space: nowrap;
   vertical-align: bottom;
 }
+.turnCostTail {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, #5d6b7d);
+  font-variant-numeric: tabular-nums;
+}
 .badge {
   display: inline-block;
   padding: 1px 8px;
