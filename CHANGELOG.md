@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 — 2026-08-14
+
+- Chart legends move into the chart's top-right corner as a translucent overlay (Token Trend, Token Flow, Cost Trend, Cumulative Context, and Pricing comparison charts).
+
 ## 0.1.5 — 2026-08-14
 
 - Line charts: visible axes (left + bottom), tick marks, gradient area fills, smooth curves, data-point dots on sparse series, and a hover tooltip with a guide line.

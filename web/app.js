@@ -131,10 +131,17 @@
   // ---------- SVG charts ----------
   const PALETTE = ['#4c9aff', '#3ec7d6', '#9d8cff', '#34c98a', '#e8b64c', '#e5606f']
 
-  function chart(spec, small) {
+  function chart(spec, small, opts) {
     const holder = el('div', { class: 'flow-chart' + (small ? ' small' : '') })
     holder.innerHTML = spec.svg // numeric-only payload, safe by construction
     if (spec.meta !== undefined) attachTooltip(holder, spec.meta)
+    if (opts !== undefined && opts.legend !== undefined) {
+      holder.appendChild(el('div', { class: 'chart-legend-overlay' }, opts.legend.map(item =>
+        el('span', { class: 'legend-chip' }, [
+          el('span', { class: 'legend-dot', style: 'background:' + item.color }),
+          item.label,
+        ]))))
+    }
     return holder
   }
 
@@ -338,14 +345,6 @@
     return nice * magnitude
   }
 
-  function legend(items) {
-    return el('div', { class: 'chart-legend' }, items.map(item =>
-      el('span', {}, [
-        el('span', { class: 'legend-dot', style: 'background:' + item.color }),
-        item.label,
-      ])))
-  }
-
   function trendSeries(trend, pickers) {
     const labels = trend.map(point => {
       const bucket = point.bucketStart
@@ -498,8 +497,9 @@
         [t('legend.output'), '#9d8cff', p => p.outputTokens],
       ])
       main.push(panel(t('panel.tokenTrend'), [
-        chart(lineChart(series, { height: 300 })),
-        legend(series.map(s => ({ label: s.label, color: s.color }))),
+        chart(lineChart(series, { height: 300 }), false, {
+          legend: series.map(s => ({ label: s.label, color: s.color })),
+        }),
       ]))
     }
 
@@ -712,7 +712,9 @@
         points: cumulative.map(point => point.tokens),
       }]
       main.push(panel(t('panel.cumulativeContext'), [
-        chart(lineChart(series, { height: 180 }), true),
+        chart(lineChart(series, { height: 180 }), true, {
+          legend: series.map(s => ({ label: s.label, color: s.color })),
+        }),
       ]))
     }
 
@@ -748,8 +750,9 @@
     ])
     return [
       panel(t('panel.tokenFlow'), [
-        chart(lineChart(series, { height: 300 })),
-        legend(series.map(s => ({ label: s.label, color: s.color }))),
+        chart(lineChart(series, { height: 300 }), false, {
+          legend: series.map(s => ({ label: s.label, color: s.color })),
+        }),
       ]),
       panel(t('panel.composition'), compositionPanel(overview.totals)),
     ]
@@ -791,7 +794,9 @@
       }],
     ])
     if (overview.trend.length > 0) {
-      main.push(panel(t('panel.costTrend'), [chart(lineChart(series, { height: 200 }), true)]))
+      main.push(panel(t('panel.costTrend'), [chart(lineChart(series, { height: 200 }), true, {
+        legend: series.map(s => ({ label: s.label, color: s.color })),
+      })]))
     }
     main.push(el('div', { class: 'grid-2' }, [
       panel(t('panel.costByModel'), costModelDonut(overview.byModel)),
@@ -852,8 +857,9 @@
     const priceFormat = v => '$' + (v < 1 ? v.toFixed(3) : v.toFixed(2))
     const main = [
       panel(t('panel.priceCompare'), [
-        chart(groupedBars(categories, groups, { height: 220, format: priceFormat })),
-        legend(groups.map(group => ({ label: group.label, color: group.color }))),
+        chart(groupedBars(categories, groups, { height: 220, format: priceFormat }), false, {
+          legend: groups.map(group => ({ label: group.label, color: group.color })),
+        }),
       ]),
     ]
     const formatted = rows.map(row => ({
