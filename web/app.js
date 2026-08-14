@@ -345,18 +345,8 @@
         [t('legend.output'), '#9d8cff', p => p.outputTokens],
       ])
       main.push(panel(t('panel.tokenTrend'), [
-        chart(lineChart(series, {})),
+        chart(lineChart(series, { height: 300 })),
         legend(series.map(s => ({ label: s.label, color: s.color }))),
-      ]))
-
-      const costSeries = trendSeries(overview.trend, [
-        [t('legend.cost'), '#e8b64c', p => {
-          const entry = p.cost && p.cost[0]
-          return entry ? entry.amount * 1e6 : 0 // tokens-scale for a readable axis
-        }],
-      ])
-      main.push(panel(t('panel.costTrend'), [
-        chart(lineChart(costSeries, { height: 180 }), true),
       ]))
     }
 
@@ -365,7 +355,7 @@
       panel(t('panel.costByModel'), [modelList(overview.byModel)]),
     ]))
 
-    main.push(panel(t('panel.sessions'), [sessionTable(overview.bySession)]))
+    main.push(panel(t('panel.sessions'), [sessionTable(overview.bySession.slice(0, 6))]))
     return main
   }
 

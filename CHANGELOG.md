@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 — 2026-08-14
+
+- Breathing-room pass: wider page/padding/gaps, roomier KPI cards and tables, bigger chart, and a single combined trend panel on Overview (the separate Cost Trend panel moved to the Cost page only).
+- In-app client panel: same spacing treatment (padding, KPI cards, tables, toolbar).
+
 ## 0.1.3 — 2026-08-14
 
 - Remove the bottom-left footer line from the dashboard (it read as clutter/overlap in the corner).
