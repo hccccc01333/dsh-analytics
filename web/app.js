@@ -158,12 +158,20 @@
     }
     const labels = series[0] && series[0].labels
       ? (() => {
-        // Thin x labels to ~64px minimum spacing so long ranges never collide.
+        // Evenly spaced x labels including both ends: pick `shown` indices at
+        // ~70px minimum spacing so no pair (especially the last two) crowds.
         const count = series[0].labels.length
-        const step = Math.max(1, Math.ceil(count / Math.max(1, Math.floor(innerW / 64))))
+        const shown = Math.max(2, Math.min(count, Math.floor(innerW / 70)))
+        const selected = new Set()
+        for (let k = 0; k < shown; k++) {
+          selected.add(Math.round((k / (shown - 1)) * (count - 1)))
+        }
         return series[0].labels.map((label, i) => {
-          if (i % step !== 0 && i !== count - 1) return ''
-          return '<text x="' + x(i).toFixed(1) + '" y="' + (height - 6) + '" text-anchor="middle" font-size="11" fill="#5d6b7d">' + label + '</text>'
+          if (!selected.has(i)) return ''
+          // First label anchors left (away from the y axis), last anchors
+          // right (away from the chart edge), middle stays centered.
+          const anchor = i === 0 ? 'start' : i === count - 1 ? 'end' : 'middle'
+          return '<text x="' + x(i).toFixed(1) + '" y="' + (height - 6) + '" text-anchor="' + anchor + '" font-size="11" fill="#5d6b7d">' + label + '</text>'
         })
       })()
       : ''
@@ -201,6 +209,102 @@
     }))
   }
 
+  // ---------- i18n ----------
+  const I18N = {
+    en: {
+      'tabs.overview': 'Overview', 'tabs.sessions': 'Sessions', 'tabs.flow': 'Token Flow',
+      'tabs.models': 'Models', 'tabs.cost': 'Cost', 'tabs.pricing': 'Pricing',
+      'kpi.cost': 'Total Cost', 'kpi.tokens': 'Total Tokens', 'kpi.cache': 'Cache Hit Rate',
+      'kpi.reasoning': 'Reasoning Share', 'kpi.calls': 'API Calls', 'kpi.tools': 'Tool Calls',
+      'kpi.unpriced': 'unpriced', 'kpi.sessions': 'sessions', 'kpi.reasoningTokens': 'reasoning tokens',
+      'cache.saved': 'saved',
+      'panel.tokenTrend': 'Token Trend', 'panel.costTrend': 'Cost Trend (per bucket, primary currency)',
+      'panel.composition': 'Token Composition', 'panel.costByModel': 'Cost by Model',
+      'panel.sessions': 'Sessions', 'panel.budget': 'Budget', 'panel.turnWaterfall': 'Turn Waterfall',
+      'panel.cumulativeContext': 'Cumulative Context (per request)', 'panel.tools': 'Tools',
+      'panel.tokenFlow': 'Token Flow', 'panel.perBucket': 'Per-bucket totals',
+      'panel.costBySession': 'Cost by Session', 'panel.costByTool': 'Cost by Tool (step attribution)',
+      'panel.pricingTable': 'Pricing Table ({n} rows)',
+      'budget.daily': 'Daily', 'budget.monthly': 'Monthly', 'budget.projected': 'projected',
+      'comp.input': 'Uncached input', 'comp.cacheRead': 'Cache read', 'comp.cacheWrite': 'Cache write', 'comp.output': 'Output',
+      'legend.input': 'Input', 'legend.cacheRead': 'Cache read', 'legend.cacheWrite': 'Cache write',
+      'legend.output': 'Output', 'legend.cost': 'Cost',
+      'table.titleCwd': 'Title / cwd', 'table.session': 'Session', 'table.created': 'Created',
+      'table.calls': 'Calls', 'table.tokens': 'Tokens', 'table.cost': 'Cost', 'table.model': 'Model',
+      'table.provider': 'Provider', 'table.input': 'Input', 'table.cache': 'Cache',
+      'table.output': 'Output', 'table.reasoning': 'Reasoning', 'table.turn': 'Turn',
+      'table.success': 'Success', 'table.errors': 'Errors', 'table.stepTokens': 'Step tokens',
+      'table.stepCost': 'Step cost', 'table.window': 'Window', 'table.bucket': 'Bucket',
+      'table.price': '$/1M tokens', 'table.effectiveFrom': 'Effective from', 'table.effectiveTo': 'Effective to',
+      'table.now': 'now', 'table.tool': 'Tool',
+      'legend.cumulative': 'Cumulative context',
+      'state.loading': 'Loading…', 'state.error': 'Failed to load analytics',
+      'state.emptySessions': 'No sessions with usage in range.',
+      'state.emptyRequests': 'No requests in range.',
+      'state.emptyModels': 'No priced requests in range.',
+      'state.emptyPricing': 'Pricing table is empty.',
+      'state.unknownPage': 'Unknown page:',
+      'back.sessions': '← Sessions',
+      'range.label': 'Range', 'range.refresh': 'Refresh',
+      'footer': 'dsh-analytics · local SQLite ledger · prices are request-time rows, never rewritten',
+    },
+    zh: {
+      'tabs.overview': '概览', 'tabs.sessions': '会话', 'tabs.flow': 'Token 流',
+      'tabs.models': '模型', 'tabs.cost': '成本', 'tabs.pricing': '定价',
+      'kpi.cost': '总成本', 'kpi.tokens': '总 Token', 'kpi.cache': '缓存命中率',
+      'kpi.reasoning': '推理占比', 'kpi.calls': 'API 调用', 'kpi.tools': '工具调用',
+      'kpi.unpriced': '未计价', 'kpi.sessions': '个会话', 'kpi.reasoningTokens': '推理 Token',
+      'cache.saved': '节省',
+      'panel.tokenTrend': 'Token 趋势', 'panel.costTrend': '成本趋势（每桶，主币种）',
+      'panel.composition': 'Token 构成', 'panel.costByModel': '按模型成本',
+      'panel.sessions': '会话', 'panel.budget': '预算', 'panel.turnWaterfall': 'Turn 成本瀑布',
+      'panel.cumulativeContext': '累积上下文（按请求）', 'panel.tools': '工具',
+      'panel.tokenFlow': 'Token 流', 'panel.perBucket': '分桶合计',
+      'panel.costBySession': '按会话成本', 'panel.costByTool': '按工具成本（步骤归因）',
+      'panel.pricingTable': '定价表（{n} 行）',
+      'budget.daily': '每日', 'budget.monthly': '每月', 'budget.projected': '预计',
+      'comp.input': '未缓存输入', 'comp.cacheRead': '缓存读取', 'comp.cacheWrite': '缓存写入', 'comp.output': '输出',
+      'legend.input': '输入', 'legend.cacheRead': '缓存读取', 'legend.cacheWrite': '缓存写入',
+      'legend.output': '输出', 'legend.cost': '成本',
+      'table.titleCwd': '标题 / 工作目录', 'table.session': '会话', 'table.created': '创建时间',
+      'table.calls': '调用', 'table.tokens': 'Token', 'table.cost': '成本', 'table.model': '模型',
+      'table.provider': '提供方', 'table.input': '输入', 'table.cache': '缓存',
+      'table.output': '输出', 'table.reasoning': '推理', 'table.turn': 'Turn',
+      'table.success': '成功率', 'table.errors': '错误', 'table.stepTokens': '步骤 Token',
+      'table.stepCost': '步骤成本', 'table.window': '时段', 'table.bucket': '时间桶',
+      'table.price': '$/百万 Token', 'table.effectiveFrom': '生效时间', 'table.effectiveTo': '结束时间',
+      'table.now': '至今', 'table.tool': '工具',
+      'legend.cumulative': '累积上下文',
+      'state.loading': '加载中…', 'state.error': '分析数据加载失败',
+      'state.emptySessions': '范围内没有产生用量的会话。',
+      'state.emptyRequests': '范围内没有请求。',
+      'state.emptyModels': '范围内没有已计价请求。',
+      'state.emptyPricing': '定价表为空。',
+      'state.unknownPage': '未知页面：',
+      'back.sessions': '← 会话列表',
+      'range.label': '范围', 'range.refresh': '刷新',
+      'footer': 'dsh-analytics · 本地 SQLite 账本 · 价格按请求时点生效，永不改写历史',
+    },
+  }
+
+  const langParam = new URLSearchParams(location.search).get('lang')
+  let locale = langParam === 'zh' || localStorage.getItem('dsh-analytics-locale') === 'zh' ? 'zh' : 'en'
+
+  function t(key, n) {
+    let text = (I18N[locale] && I18N[locale][key]) ?? key
+    if (n !== undefined) text = text.replace('{n}', String(n))
+    return text
+  }
+
+  function applyLocale() {
+    document.getElementById('range-label').textContent = t('range.label')
+    document.getElementById('refresh').title = t('range.refresh')
+    document.getElementById('lang').textContent = locale === 'en' ? '中' : 'EN'
+    document.getElementById('lang').title = locale === 'en' ? 'Switch to 中文' : 'Switch to English'
+    document.getElementById('loading').textContent = t('state.loading')
+    document.getElementById('foot').textContent = t('footer')
+  }
+
   // ---------- state ----------
   const state = {
     hours: Number(localStorage.getItem('dsh-analytics-range') || 24),
@@ -208,29 +312,29 @@
   }
 
   const TABS = [
-    ['overview', 'Overview'],
-    ['sessions', 'Sessions'],
-    ['flow', 'Token Flow'],
-    ['models', 'Models'],
-    ['cost', 'Cost'],
-    ['pricing', 'Pricing'],
+    ['overview', 'tabs.overview'],
+    ['sessions', 'tabs.sessions'],
+    ['flow', 'tabs.flow'],
+    ['models', 'tabs.models'],
+    ['cost', 'tabs.cost'],
+    ['pricing', 'tabs.pricing'],
   ]
 
   // ---------- pages ----------
   async function renderOverview() {
     const [overview, budget] = await Promise.all([api.overview(state.hours), api.budget()])
-    const t = overview.totals
+    const totals = overview.totals
     const c = overview.cache
     const r = overview.reasoning
     const main = []
 
     main.push(el('div', { class: 'cards' }, [
-      card('Total Cost', fmt.cost(overview.cost), overview.cost.length === 0 ? 'unpriced' : undefined),
-      card('Total Tokens', fmt.tokens(t.totalTokens), t.apiCalls + ' API calls'),
-      card('Cache Hit Rate', fmt.pct(c.hitRate), 'saved ' + fmt.cost(c.savings)),
-      card('Reasoning Share', fmt.pct(r.shareOfTotal), fmt.tokens(r.tokens) + ' reasoning tokens'),
-      card('API Calls', fmt.number(t.apiCalls), t.unpricedCalls + ' unpriced'),
-      card('Tool Calls', fmt.number(t.toolCalls), t.sessions + ' sessions'),
+      card(t('kpi.cost'), fmt.cost(overview.cost), overview.cost.length === 0 ? t('kpi.unpriced') : undefined),
+      card(t('kpi.tokens'), fmt.tokens(totals.totalTokens), totals.apiCalls + ' ' + t('kpi.calls')),
+      card(t('kpi.cache'), fmt.pct(c.hitRate), t('cache.saved') + ' ' + fmt.cost(c.savings)),
+      card(t('kpi.reasoning'), fmt.pct(r.shareOfTotal), fmt.tokens(r.tokens) + ' ' + t('kpi.reasoningTokens')),
+      card(t('kpi.calls'), fmt.number(totals.apiCalls), totals.unpricedCalls + ' ' + t('kpi.unpriced')),
+      card(t('kpi.tools'), fmt.number(totals.toolCalls), totals.sessions + ' ' + t('kpi.sessions')),
     ]))
 
     if (overview.budget && (overview.budget.daily || overview.budget.monthly)) {
@@ -239,46 +343,46 @@
 
     if (overview.trend.length > 0) {
       const series = trendSeries(overview.trend, [
-        ['Input', '#4c9aff', p => p.inputTokens],
-        ['Cache read', '#3ec7d6', p => p.cacheReadTokens],
-        ['Output', '#9d8cff', p => p.outputTokens],
+        [t('legend.input'), '#4c9aff', p => p.inputTokens],
+        [t('legend.cacheRead'), '#3ec7d6', p => p.cacheReadTokens],
+        [t('legend.output'), '#9d8cff', p => p.outputTokens],
       ])
-      main.push(panel('Token Trend', [
+      main.push(panel(t('panel.tokenTrend'), [
         chart(lineChart(series, {})),
         legend(series.map(s => ({ label: s.label, color: s.color }))),
       ]))
 
       const costSeries = trendSeries(overview.trend, [
-        ['Cost', '#e8b64c', p => {
+        [t('legend.cost'), '#e8b64c', p => {
           const entry = p.cost && p.cost[0]
           return entry ? entry.amount * 1e6 : 0 // tokens-scale for a readable axis
         }],
       ])
-      main.push(panel('Cost Trend (per bucket, primary currency)', [
+      main.push(panel(t('panel.costTrend'), [
         chart(lineChart(costSeries, { height: 180 }), true),
       ]))
     }
 
     main.push(el('div', { class: 'grid-2' }, [
-      panel('Token Composition', [compositionBar(overview.totals)]),
-      panel('Cost by Model', [modelList(overview.byModel)]),
+      panel(t('panel.composition'), [compositionBar(overview.totals)]),
+      panel(t('panel.costByModel'), [modelList(overview.byModel)]),
     ]))
 
-    main.push(panel('Sessions', [sessionTable(overview.bySession)]))
+    main.push(panel(t('panel.sessions'), [sessionTable(overview.bySession)]))
     return main
   }
 
   function budgetPanel(budget) {
     const rows = []
     if (budget.daily) {
-      rows.push(metricBar('Daily', budget.daily.spent / budget.daily.limit, budget.daily, fmt.money(budget.daily.spent, budget.daily.currency) + ' / ' + fmt.money(budget.daily.limit, budget.daily.currency)))
+      rows.push(metricBar(t('budget.daily'), budget.daily.spent / budget.daily.limit, budget.daily, fmt.money(budget.daily.spent, budget.daily.currency) + ' / ' + fmt.money(budget.daily.limit, budget.daily.currency)))
     }
     if (budget.monthly) {
-      rows.push(metricBar('Monthly', budget.monthly.spent / budget.monthly.limit, budget.monthly,
+      rows.push(metricBar(t('budget.monthly'), budget.monthly.spent / budget.monthly.limit, budget.monthly,
         fmt.money(budget.monthly.spent, budget.monthly.currency) + ' / ' + fmt.money(budget.monthly.limit, budget.monthly.currency)
-        + ' · projected ' + fmt.money(budget.monthly.projected, budget.monthly.currency)))
+        + ' · ' + t('budget.projected') + ' ' + fmt.money(budget.monthly.projected, budget.monthly.currency)))
     }
-    return panel('Budget', rows)
+    return panel(t('panel.budget'), rows)
   }
 
   function metricBar(label, ratio, data, valueText) {
@@ -292,10 +396,10 @@
 
   function compositionBar(totals) {
     const parts = [
-      ['Uncached input', totals.inputTokens, 'var(--accent)'],
-      ['Cache read', totals.cacheReadTokens, 'var(--cyan)'],
-      ['Cache write', totals.cacheWriteTokens, 'var(--violet)'],
-      ['Output', totals.outputTokens, 'var(--green)'],
+      [t('comp.input'), totals.inputTokens, 'var(--accent)'],
+      [t('comp.cacheRead'), totals.cacheReadTokens, 'var(--cyan)'],
+      [t('comp.cacheWrite'), totals.cacheWriteTokens, 'var(--violet)'],
+      [t('comp.output'), totals.outputTokens, 'var(--green)'],
     ]
     const sum = Math.max(1, totals.totalTokens)
     const track = el('div', { class: 'm-track', style: 'height:16px;width:100%' })
@@ -313,7 +417,7 @@
   }
 
   function modelList(models) {
-    if (models.length === 0) return el('div', { class: 'dim' }, 'No priced requests in range.')
+    if (models.length === 0) return el('div', { class: 'dim' }, t('state.emptyModels'))
     const top = models.slice(0, 8)
     const maxCost = Math.max(1, ...top.map(m => (m.cost[0] && m.cost[0].amount) || 0))
     return top.map(model => {
@@ -331,7 +435,7 @@
   async function renderSessions() {
     const sessions = await api.sessions(state.hours)
     if (sessions.length === 0) {
-      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, 'No sessions with usage in range.'))]
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptySessions')))]
     }
     const rows = sessions.map(session => ({
       session,
@@ -344,8 +448,8 @@
         rightCell(fmt.cost(session.cost)),
       ],
     }))
-    return [panel('Sessions', table(
-      [{ label: 'Title / cwd' }, { label: 'Session' }, { label: 'Created' }, { label: 'Calls', align: 'right' }, { label: 'Tokens', align: 'right' }, { label: 'Cost', align: 'right' }],
+    return [panel(t('panel.sessions'), table(
+      [{ label: t('table.titleCwd') }, { label: t('table.session') }, { label: t('table.created') }, { label: t('table.calls'), align: 'right' }, { label: t('table.tokens'), align: 'right' }, { label: t('table.cost'), align: 'right' }],
       rows.map(row => row),
       { onRowClick: row => navigate('#/session/' + encodeURIComponent(row.session.sessionId)) },
     ))]
@@ -354,13 +458,13 @@
   async function renderSession(sessionId) {
     const detail = await api.session(sessionId)
     const main = [
-      el('button', { class: 'back', onclick: () => navigate('#/sessions') }, '← Sessions'),
+      el('button', { class: 'back', onclick: () => navigate('#/sessions') }, t('back.sessions')),
       el('div', { class: 'cards' }, [
-        card('Session', detail.sessionId, detail.title || detail.cwd || ''),
-        card('API Calls', fmt.number(detail.apiCalls), detail.unpricedCalls + ' unpriced'),
-        card('Total Tokens', fmt.tokens(detail.totalTokens)),
-        card('Total Cost', fmt.cost(detail.cost)),
-        card('Cache Hit Rate', fmt.pct(detail.cache.hitRate), 'saved ' + fmt.cost(detail.cache.savings)),
+        card(t('table.session'), detail.sessionId, detail.title || detail.cwd || ''),
+        card(t('kpi.calls'), fmt.number(detail.apiCalls), detail.unpricedCalls + ' ' + t('kpi.unpriced')),
+        card(t('kpi.tokens'), fmt.tokens(detail.totalTokens)),
+        card(t('kpi.cost'), fmt.cost(detail.cost)),
+        card(t('kpi.cache'), fmt.pct(detail.cache.hitRate), t('cache.saved') + ' ' + fmt.cost(detail.cache.savings)),
       ]),
     ]
 
@@ -375,8 +479,8 @@
         rightCell(fmt.cost(turn.cost)),
       ],
     }))
-    main.push(panel('Turn Waterfall', table(
-      [{ label: 'Turn' }, { label: 'Calls', align: 'right' }, { label: 'Input', align: 'right' }, { label: 'Cache', align: 'right' }, { label: 'Output', align: 'right' }, { label: 'Reasoning', align: 'right' }, { label: 'Cost', align: 'right' }],
+    main.push(panel(t('panel.turnWaterfall'), table(
+      [{ label: t('table.turn') }, { label: t('table.calls'), align: 'right' }, { label: t('table.input'), align: 'right' }, { label: t('table.cache'), align: 'right' }, { label: t('table.output'), align: 'right' }, { label: t('table.reasoning'), align: 'right' }, { label: t('table.cost'), align: 'right' }],
       turnRows,
     )))
 
@@ -388,12 +492,12 @@
     }
     if (cumulative.length > 1) {
       const series = [{
-        label: 'Cumulative context',
+        label: t('legend.cumulative'),
         color: '#4c9aff',
         labels: cumulative.map(point => fmt.timeShort(point.time)),
         points: cumulative.map(point => point.tokens),
       }]
-      main.push(panel('Cumulative Context (per request)', [
+      main.push(panel(t('panel.cumulativeContext'), [
         chart(lineChart(series, { height: 180 }), true),
       ]))
     }
@@ -409,8 +513,8 @@
           rightCell(fmt.cost(tool.cost)),
         ],
       }))
-      main.push(panel('Tools', table(
-        [{ label: 'Tool' }, { label: 'Calls', align: 'right' }, { label: 'Errors', align: 'right' }, { label: 'Success', align: 'right' }, { label: 'Step tokens', align: 'right' }, { label: 'Step cost', align: 'right' }],
+      main.push(panel(t('panel.tools'), table(
+        [{ label: t('table.tool') }, { label: t('table.calls'), align: 'right' }, { label: t('table.errors'), align: 'right' }, { label: t('table.success'), align: 'right' }, { label: t('table.stepTokens'), align: 'right' }, { label: t('table.stepCost'), align: 'right' }],
         toolRows,
       )))
     }
@@ -420,27 +524,27 @@
   async function renderFlow() {
     const overview = await api.overview(state.hours)
     if (overview.trend.length === 0) {
-      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, 'No requests in range.'))]
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyRequests')))]
     }
     const series = trendSeries(overview.trend, [
-      ['Input', '#4c9aff', p => p.inputTokens],
-      ['Cache read', '#3ec7d6', p => p.cacheReadTokens],
-      ['Cache write', '#9d8cff', p => p.cacheWriteTokens],
-      ['Output', '#34c98a', p => p.outputTokens],
+      [t('legend.input'), '#4c9aff', p => p.inputTokens],
+      [t('legend.cacheRead'), '#3ec7d6', p => p.cacheReadTokens],
+      [t('legend.cacheWrite'), '#9d8cff', p => p.cacheWriteTokens],
+      [t('legend.output'), '#34c98a', p => p.outputTokens],
     ])
     return [
-      panel('Token Flow', [
+      panel(t('panel.tokenFlow'), [
         chart(lineChart(series, { height: 300 })),
         legend(series.map(s => ({ label: s.label, color: s.color }))),
       ]),
-      panel('Per-bucket totals', [compositionBar(overview.totals)]),
+      panel(t('panel.perBucket'), [compositionBar(overview.totals)]),
     ]
   }
 
   async function renderModels() {
     const models = await api.models(state.hours)
     if (models.length === 0) {
-      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, 'No priced requests in range.'))]
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyModels')))]
     }
     const rows = models.map(model => ({
       cells: [
@@ -454,8 +558,8 @@
         rightCell(fmt.cost(model.cost)),
       ],
     }))
-    return [panel('Cost by Model', table(
-      [{ label: 'Model' }, { label: 'Provider' }, { label: 'Calls', align: 'right' }, { label: 'Input', align: 'right' }, { label: 'Cache', align: 'right' }, { label: 'Output', align: 'right' }, { label: 'Reasoning', align: 'right' }, { label: 'Cost', align: 'right' }],
+    return [panel(t('panel.costByModel'), table(
+      [{ label: t('table.model') }, { label: t('table.provider') }, { label: t('table.calls'), align: 'right' }, { label: t('table.input'), align: 'right' }, { label: t('table.cache'), align: 'right' }, { label: t('table.output'), align: 'right' }, { label: t('table.reasoning'), align: 'right' }, { label: t('table.cost'), align: 'right' }],
       rows,
     ))]
   }
@@ -467,17 +571,17 @@
       main.push(budgetPanel(overview.budget))
     }
     const series = trendSeries(overview.trend, [
-      ['Cost', '#e8b64c', p => {
+      [t('legend.cost'), '#e8b64c', p => {
         const entry = p.cost && p.cost[0]
         return entry ? entry.amount * 1e6 : 0
       }],
     ])
     if (overview.trend.length > 0) {
-      main.push(panel('Cost Trend', [chart(lineChart(series, { height: 200 }), true)]))
+      main.push(panel(t('panel.costTrend'), [chart(lineChart(series, { height: 200 }), true)]))
     }
     main.push(el('div', { class: 'grid-2' }, [
-      panel('Cost by Model', [modelList(overview.byModel)]),
-      panel('Cost by Session', [sessionCostList(overview.bySession)]),
+      panel(t('panel.costByModel'), [modelList(overview.byModel)]),
+      panel(t('panel.costBySession'), [sessionCostList(overview.bySession)]),
     ]))
     if (tools.length > 0) {
       const rows = tools.map(tool => ({
@@ -490,8 +594,8 @@
           rightCell(fmt.cost(tool.cost)),
         ],
       }))
-      main.push(panel('Cost by Tool (step attribution)', table(
-        [{ label: 'Tool' }, { label: 'Calls', align: 'right' }, { label: 'Errors', align: 'right' }, { label: 'Success', align: 'right' }, { label: 'Step tokens', align: 'right' }, { label: 'Step cost', align: 'right' }],
+      main.push(panel(t('panel.costByTool'), table(
+        [{ label: t('table.tool') }, { label: t('table.calls'), align: 'right' }, { label: t('table.errors'), align: 'right' }, { label: t('table.success'), align: 'right' }, { label: t('table.stepTokens'), align: 'right' }, { label: t('table.stepCost'), align: 'right' }],
         rows,
       )))
     }
@@ -499,7 +603,7 @@
   }
 
   function sessionCostList(sessions) {
-    if (sessions.length === 0) return el('div', { class: 'dim' }, 'No sessions in range.')
+    if (sessions.length === 0) return el('div', { class: 'dim' }, t('state.emptySessions'))
     const maxCost = Math.max(1, ...sessions.map(s => (s.cost[0] && s.cost[0].amount) || 0))
     return sessions.slice(0, 10).map(session => {
       const cost = session.cost[0]
@@ -516,7 +620,7 @@
   async function renderPricing() {
     const rows = await api.pricing()
     if (rows.length === 0) {
-      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, 'Pricing table is empty.'))]
+      return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.emptyPricing')))]
     }
     const formatted = rows.map(row => ({
       cells: [
@@ -526,17 +630,17 @@
         row.inputType,
         rightCell('$' + row.pricePerMillion.toFixed(4) + (row.currency !== 'USD' ? ' ' + row.currency : '')),
         fmt.time(Date.parse(row.effectiveFrom)),
-        row.effectiveTo ? fmt.time(Date.parse(row.effectiveTo)) : 'now',
+        row.effectiveTo ? fmt.time(Date.parse(row.effectiveTo)) : t('table.now'),
       ],
     }))
-    return [panel('Pricing Table (' + rows.length + ' rows)', table(
-      [{ label: 'Model' }, { label: 'Provider' }, { label: 'Window' }, { label: 'Bucket' }, { label: '$/1M tokens', align: 'right' }, { label: 'Effective from' }, { label: 'Effective to' }],
+    return [panel(t('panel.pricingTable', rows.length), table(
+      [{ label: t('table.model') }, { label: t('table.provider') }, { label: t('table.window') }, { label: t('table.bucket') }, { label: t('table.price'), align: 'right' }, { label: t('table.effectiveFrom') }, { label: t('table.effectiveTo') }],
       formatted,
     ))]
   }
 
   function sessionTable(sessions) {
-    if (sessions.length === 0) return el('div', { class: 'dim' }, 'No sessions in range.')
+    if (sessions.length === 0) return el('div', { class: 'dim' }, t('state.emptySessions'))
     const rows = sessions.map(session => ({
       session,
       cells: [
@@ -549,7 +653,7 @@
       ],
     }))
     return table(
-      [{ label: 'Title / cwd' }, { label: 'Session' }, { label: 'Created' }, { label: 'Calls', align: 'right' }, { label: 'Tokens', align: 'right' }, { label: 'Cost', align: 'right' }],
+      [{ label: t('table.titleCwd') }, { label: t('table.session') }, { label: t('table.created') }, { label: t('table.calls'), align: 'right' }, { label: t('table.tokens'), align: 'right' }, { label: t('table.cost'), align: 'right' }],
       rows,
       { onRowClick: row => navigate('#/session/' + encodeURIComponent(row.session.sessionId)) },
     )
@@ -576,15 +680,25 @@
       void refresh()
     })
     document.getElementById('refresh').addEventListener('click', () => void refresh())
+    document.getElementById('lang').addEventListener('click', toggleLocale)
     window.addEventListener('hashchange', () => void refresh())
     await refresh()
   }
 
   function renderTabs() {
     const tabs = document.getElementById('tabs')
+    tabs.replaceChildren()
     for (const [id, label] of TABS) {
-      tabs.appendChild(el('button', { class: 'tab', dataset: { page: id }, onclick: () => navigate('#/' + id) }, label))
+      tabs.appendChild(el('button', { class: 'tab', dataset: { page: id }, onclick: () => navigate('#/' + id) }, t(label)))
     }
+  }
+
+  function toggleLocale() {
+    locale = locale === 'en' ? 'zh' : 'en'
+    localStorage.setItem('dsh-analytics-locale', locale)
+    applyLocale()
+    renderTabs()
+    void refresh()
   }
 
   async function refresh() {
@@ -595,13 +709,13 @@
     }
     const main = document.getElementById('main')
     const refreshButton = document.getElementById('refresh')
-    main.replaceChildren(el('div', { class: 'loading' }, 'Loading…'))
+    main.replaceChildren(el('div', { class: 'loading' }, t('state.loading')))
     refreshButton.disabled = true
     try {
       const nodes = await dispatch(route)
       main.replaceChildren(...nodes)
     } catch (error) {
-      main.replaceChildren(el('div', { class: 'error' }, 'Failed to load analytics: ' + (error instanceof Error ? error.message : String(error))))
+      main.replaceChildren(el('div', { class: 'error' }, t('state.error') + ': ' + (error instanceof Error ? error.message : String(error))))
     } finally {
       refreshButton.disabled = false
     }
@@ -616,9 +730,10 @@
       case 'models': return renderModels()
       case 'cost': return renderCost()
       case 'pricing': return renderPricing()
-      default: return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, 'Unknown page: ' + route.path))]
+      default: return [el('div', { class: 'panel' }, el('div', { class: 'dim' }, t('state.unknownPage') + ' ' + route.path))]
     }
   }
 
+  applyLocale()
   boot()
 })()

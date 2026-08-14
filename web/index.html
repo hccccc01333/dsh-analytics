@@ -14,7 +14,7 @@
     </div>
     <nav class="tabs" id="tabs" aria-label="Analytics pages"></nav>
     <div class="topbar-controls">
-      <label class="range-label" for="range">Range</label>
+      <label class="range-label" id="range-label" for="range">Range</label>
       <select id="range" class="range-select">
         <option value="6">6h</option>
         <option value="24" selected>24h</option>
@@ -22,13 +22,14 @@
         <option value="720">30d</option>
         <option value="0">All</option>
       </select>
+      <button id="lang" class="icon-btn" title="Switch to 中文">中</button>
       <button id="refresh" class="icon-btn" title="Refresh" aria-label="Refresh">&#8635;</button>
     </div>
   </header>
   <main id="main" class="main">
-    <div class="loading">Loading&hellip;</div>
+    <div class="loading" id="loading">Loading&hellip;</div>
   </main>
-  <footer class="foot">
+  <footer class="foot" id="foot">
     dsh-analytics &middot; local SQLite ledger &middot; prices are request-time rows, never rewritten
   </footer>
   <script src="/analytics/app.js?v=0.1.0"></script>

@@ -153,7 +153,8 @@ package (`web/`):
 
 The range selector (6h/24h/7d/30d/all) applies to every page; the shell-nav
 integration inside the harness client is a follow-up (the harness client has
-no free plugin page slot today).
+no free plugin page slot today). The top bar also has an **EN / 中文** toggle
+(persisted across visits; `?lang=zh` forces Chinese).
 
 ## In-shell entry (web profile)
 

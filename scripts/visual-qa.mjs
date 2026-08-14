@@ -16,6 +16,7 @@ import { join } from 'node:path'
 
 const EDGE = process.env.EDGE ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:4173/analytics'
+const WINDOW = process.env.WINDOW ?? '1500,950'
 const DEBUG_PORT = 9223
 
 const PAGES = [
@@ -108,7 +109,7 @@ async function main() {
     '--disable-gpu',
     `--remote-debugging-port=${DEBUG_PORT}`,
     `--user-data-dir=${profile}`,
-    '--window-size=1500,950',
+    `--window-size=${WINDOW}`,
     `${BASE}${PAGES[0].hash}`,
   ], { stdio: 'ignore' })
 

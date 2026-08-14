@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — 2026-08-14
+
+- i18n: the standalone dashboard now has an EN/中文 toggle (persisted, `?lang=` param), with every label translated.
+- Fix: chart x-labels are evenly spaced including both ends (~70px minimum) and the first/last anchor away from the y-axis and chart edge.
+- QA: multi-viewport (1500 / 1024 / 720) overlap, label-collision, and overflow checks pass in both languages.
+
 ## 0.1.1 — 2026-08-14
 
 - Polish: thin chart x-labels to ~64px minimum spacing so 7d/30d ranges never collide.
