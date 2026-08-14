@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Token Analytics</title>
+  <link rel="stylesheet" href="/analytics/style.css?v=0.1.0">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot" aria-hidden="true"></span>
+      <span class="brand-name">Token Analytics</span>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Analytics pages"></nav>
+    <div class="topbar-controls">
+      <label class="range-label" for="range">Range</label>
+      <select id="range" class="range-select">
+        <option value="6">6h</option>
+        <option value="24" selected>24h</option>
+        <option value="168">7d</option>
+        <option value="720">30d</option>
+        <option value="0">All</option>
+      </select>
+      <button id="refresh" class="icon-btn" title="Refresh" aria-label="Refresh">&#8635;</button>
+    </div>
+  </header>
+  <main id="main" class="main">
+    <div class="loading">Loading&hellip;</div>
+  </main>
+  <footer class="foot">
+    dsh-analytics &middot; local SQLite ledger &middot; prices are request-time rows, never rewritten
+  </footer>
+  <script src="/analytics/app.js?v=0.1.0"></script>
+</body>
+</html>

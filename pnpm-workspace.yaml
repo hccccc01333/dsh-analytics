@@ -1,0 +1,9 @@
+# Standalone workspace boundary: keeps this plugin outside the harness
+# monorepo workspace so it installs like any external dsh-plugin package.
+packages:
+  - .
+
+# pnpm 11 blocks dependency build scripts by default; tsx (the test runner)
+# needs esbuild's postinstall to place its native binary.
+allowBuilds:
+  esbuild: true

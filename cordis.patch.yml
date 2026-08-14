@@ -1,0 +1,4 @@
+# Distribution layer: mounted when a profile lists dsh-analytics.
+- insert:
+    - id: analytics
+      name: dsh-analytics

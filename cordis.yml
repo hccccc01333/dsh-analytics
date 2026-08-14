@@ -1,0 +1,5 @@
+# Local development overlay: mount the plugin from source.
+# Run: dsh --profile web --patch ./cordis.yml
+- insert:
+    - id: analytics
+      name: 'file:///D:/deepseek-harness/dsh-analytics/src/index.ts'

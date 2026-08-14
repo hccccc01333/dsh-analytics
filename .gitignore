@@ -1,0 +1,9 @@
+node_modules/
+lib/
+*.tsbuildinfo
+*.sqlite
+*.sqlite-*
+*.tgz
+.analytics/
+.dsh/
+.DS_Store
